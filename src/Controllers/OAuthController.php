@@ -90,7 +90,10 @@ class OAuthController extends BaseController
         $provider = $this->getProvider($providerName);
 
         if (!$request->has('code')) {
-            $authorizationUrl = $provider->getAuthorizationUrl();
+            $authorizationUrl = $provider->getAuthorizationUrl([
+                'scope' => 'openid email profile'
+            ]);
+
             $this->session->set('oauth2_state', $provider->getState());
 
             return $this->redirector->to($authorizationUrl);

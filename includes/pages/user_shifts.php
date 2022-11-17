@@ -243,9 +243,9 @@ function view_user_shifts()
         ]
     ];
     $start_day = date('Y-m-d', $shiftsFilter->getStartTime());
-    $start_time = date('H:i', $shiftsFilter->getStartTime());
+    $start_time = '08:00';
     $end_day = date('Y-m-d', $shiftsFilter->getEndTime());
-    $end_time = date('H:i', $shiftsFilter->getEndTime());
+    $end_time = '23:59';
 
     if (config('signup_requires_arrival') && !$user->state->arrived) {
         info(render_user_arrived_hint());
