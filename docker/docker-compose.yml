@@ -12,13 +12,16 @@ services:
       MYSQL_PASSWORD: engelsystem
       MYSQL_DATABASE: engelsystem
     ports:
-      - "5000:80"
+      - "127.0.0.1:5000:80"
     env_file: deployment.env
     networks:
       - database
       - internet
     depends_on:
       - es_database
+    volumes:
+      - /opt/engelsystem/engelsystem/config:/var/www/config:ro
+    restart: unless-stopped
   es_database:
     image: mariadb:10.2
     environment:
@@ -31,6 +34,7 @@ services:
       - db:/var/lib/mysql
     networks:
       - database
+    restart: unless-stopped
 volumes:
   db: {}
 
