@@ -2,6 +2,12 @@
 [![coverage report](https://chaos.expert/engelsystem/engelsystem/badges/main/coverage.svg)](https://chaos.expert/engelsystem/engelsystem/commits/main)
 [![GPL](https://img.shields.io/github/license/engelsystem/engelsystem.svg?maxAge=2592000)](LICENSE)
 
+# Setup steps
+These are the steps required to run the Engelsystem in the HPI environment:
+- clone the repository
+- change passwords of database in docker/docker-compose.yml
+- configure keys of OIDC and API key in config/config.php. The keys can be generated at oidc.hpi.de
+
 # Engelsystem
 Please visit [engelsystem.de](https://engelsystem.de) for a feature list.
 
