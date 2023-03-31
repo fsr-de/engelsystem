@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Engelsystem\Migrations;
 
 use Carbon\Carbon;
@@ -18,7 +20,7 @@ class AddTimestampsToQuestions extends Migration
         $connection = $this->schema->getConnection();
         $now = Carbon::now();
 
-        $this->schema->table('questions', function (Blueprint $table) {
+        $this->schema->table('questions', function (Blueprint $table): void {
             $table->timestamp('answered_at')->after('answerer_id')->nullable();
             $table->timestamps();
         });
@@ -40,7 +42,7 @@ class AddTimestampsToQuestions extends Migration
      */
     public function down(): void
     {
-        $this->schema->table('questions', function (Blueprint $table) {
+        $this->schema->table('questions', function (Blueprint $table): void {
             $table->dropColumn('answered_at');
             $table->dropTimestamps();
         });

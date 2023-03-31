@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Engelsystem\Controllers;
 
 use Carbon\Carbon;
@@ -7,11 +9,6 @@ use DateTime;
 
 trait ChecksArrivalsAndDepartures
 {
-    /**
-     * @param string|null $arrival
-     * @param string|null $departure
-     * @return bool
-     */
     protected function isArrivalDateValid(?string $arrival, ?string $departure): bool
     {
         $arrival_carbon = $this->toCarbon($arrival);
@@ -28,11 +25,6 @@ trait ChecksArrivalsAndDepartures
         return !$this->isBeforeBuildup($arrival_carbon) && !$this->isAfterTeardown($arrival_carbon);
     }
 
-    /**
-     * @param string|null $arrival
-     * @param string|null $departure
-     * @return bool
-     */
     protected function isDepartureDateValid(?string $arrival, ?string $departure): bool
     {
         $arrival_carbon = $this->toCarbon($arrival);
@@ -40,6 +32,10 @@ trait ChecksArrivalsAndDepartures
 
         if (is_null($departure_carbon)) {
             return true; // since optional value
+        }
+
+        if (is_null($arrival_carbon)) {
+            return false; // Will be false any ways
         }
 
         return $departure_carbon->greaterThanOrEqualTo($arrival_carbon) &&

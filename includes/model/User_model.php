@@ -2,6 +2,7 @@
 
 use Carbon\Carbon;
 use Engelsystem\Database\Db;
+use Engelsystem\Models\AngelType;
 use Engelsystem\Models\User\User;
 use Engelsystem\Models\Worklog;
 use Engelsystem\ValidationResult;
@@ -24,14 +25,13 @@ function User_tshirt_score($userId)
     $shift_sum_formula = User_get_shifts_sum_query();
     $result_shifts = Db::selectOne(sprintf('
         SELECT ROUND((%s) / 3600, 2) AS `tshirt_score`
-        FROM `users` LEFT JOIN `ShiftEntry` ON `users`.`id` = `ShiftEntry`.`UID`
-        LEFT JOIN `Shifts` ON `ShiftEntry`.`SID` = `Shifts`.`SID`
+        FROM `users` LEFT JOIN `shift_entries` ON `users`.`id` = `shift_entries`.`user_id`
+        LEFT JOIN `shifts` ON `shift_entries`.`shift_id` = `shifts`.`id`
         WHERE `users`.`id` = ?
-        AND `Shifts`.`end` < ?
+        AND `shifts`.`end` < NOW()
         GROUP BY `users`.`id`
     ', $shift_sum_formula), [
         $userId,
-        time()
     ]);
     if (!isset($result_shifts['tshirt_score'])) {
         $result_shifts = ['tshirt_score' => 0];
@@ -46,57 +46,23 @@ function User_tshirt_score($userId)
 }
 
 /**
- * Returns true if user is freeloader
- *
- * @param User $user
- * @return bool
- */
-function User_is_freeloader($user)
-{
-    return count(ShiftEntries_freeloaded_by_user($user->id)) >= config('max_freeloadable_shifts');
-}
-
-/**
  * Returns all users that are not member of given angeltype.
  *
- * @param array $angeltype Angeltype
+ * @param AngelType $angeltype Angeltype
  *
  * @return User[]|Collection
  */
-function Users_by_angeltype_inverted($angeltype)
+function Users_by_angeltype_inverted(AngelType $angeltype)
 {
     return User::query()
         ->select('users.*')
-        ->leftJoin('UserAngelTypes', function ($query) use ($angeltype) {
+        ->leftJoin('user_angel_type', function ($query) use ($angeltype) {
             /** @var JoinClause $query */
             $query
-                ->on('users.id', '=', 'UserAngelTypes.user_id')
-                ->where('UserAngelTypes.angeltype_id', '=', $angeltype['id']);
+                ->on('users.id', '=', 'user_angel_type.user_id')
+                ->where('user_angel_type.angel_type_id', '=', $angeltype->id);
         })
-        ->whereNull('UserAngelTypes.id')
-        ->orderBy('users.name')
-        ->get();
-}
-
-/**
- * Returns all members of given angeltype.
- *
- * @param array $angeltype
- * @return User[]|Collection
- */
-function Users_by_angeltype($angeltype)
-{
-    return User::query()
-        ->select(
-            'users.*',
-            'UserAngelTypes.id AS user_angeltype_id',
-            'UserAngelTypes.confirm_user_id',
-            'UserAngelTypes.supporter',
-            'users_licenses.*'
-        )
-        ->join('UserAngelTypes', 'users.id', '=', 'UserAngelTypes.user_id')
-        ->leftJoin('users_licenses', 'users.id', '=', 'users_licenses.user_id')
-        ->where('UserAngelTypes.angeltype_id', '=', $angeltype['id'])
+        ->whereNull('user_angel_type.id')
         ->orderBy('users.name')
         ->get();
 }
@@ -120,18 +86,6 @@ function User_validate_Nick($nick)
     }
 
     return new ValidationResult(true, $nick);
-}
-
-/**
- * Validate user email address.
- *
- * @param string $mail The email address to validate
- * @return ValidationResult
- */
-function User_validate_mail($mail)
-{
-    $mail = strip_item($mail);
-    return new ValidationResult(check_email($mail), $mail);
 }
 
 /**
@@ -169,7 +123,7 @@ function User_validate_planned_arrival_date($planned_arrival_date)
 /**
  * Validate the planned departure date
  *
- * @param int $planned_arrival_date   Unix timestamp
+ * @param int $planned_arrival_date Unix timestamp
  * @param int $planned_departure_date Unix timestamp
  * @return ValidationResult
  */
@@ -212,7 +166,7 @@ function User_validate_planned_departure_date($planned_arrival_date, $planned_de
  */
 function User_reset_api_key($user, $log = true)
 {
-    $user->api_key = md5($user->name . time() . rand());
+    $user->api_key = bin2hex(random_bytes(32));
     $user->save();
 
     if ($log) {
@@ -231,15 +185,15 @@ function User_get_eligable_voucher_count($user)
         ? Carbon::createFromFormat('Y-m-d', $voucher_settings['voucher_start'])->setTime(0, 0)
         : null;
 
-    $shifts = ShiftEntries_finished_by_user($user->id, $start);
+    $shiftEntries = ShiftEntries_finished_by_user($user, $start);
     $worklog = UserWorkLogsForUser($user->id, $start);
     $shifts_done =
-        count($shifts)
+        count($shiftEntries)
         + $worklog->count();
 
     $shiftsTime = 0;
-    foreach ($shifts as $shift) {
-        $shiftsTime += ($shift['end'] - $shift['start']) / 60 / 60;
+    foreach ($shiftEntries as $shiftEntry) {
+        $shiftsTime += ($shiftEntry->shift->end->timestamp - $shiftEntry->shift->start->timestamp) / 60 / 60;
     }
     foreach ($worklog as $entry) {
         $shiftsTime += $entry->hours;
@@ -247,10 +201,10 @@ function User_get_eligable_voucher_count($user)
 
     $vouchers = $voucher_settings['initial_vouchers'];
     if ($voucher_settings['shifts_per_voucher']) {
-        $vouchers +=  $shifts_done / $voucher_settings['shifts_per_voucher'];
+        $vouchers += $shifts_done / $voucher_settings['shifts_per_voucher'];
     }
     if ($voucher_settings['hours_per_voucher']) {
-        $vouchers +=  $shiftsTime / $voucher_settings['hours_per_voucher'];
+        $vouchers += $shiftsTime / $voucher_settings['hours_per_voucher'];
     }
 
     $vouchers -= $user->state->got_voucher;
@@ -271,19 +225,19 @@ function User_get_shifts_sum_query()
 {
     $nightShifts = config('night_shifts');
     if (!$nightShifts['enabled']) {
-        return 'COALESCE(SUM(`end` - `start`), 0)';
+        return 'COALESCE(SUM(UNIX_TIMESTAMP(shifts.end) - UNIX_TIMESTAMP(shifts.start)), 0)';
     }
 
     return sprintf(
         '
             COALESCE(SUM(
                 (1 + (
-                    (HOUR(FROM_UNIXTIME(`Shifts`.`end`)) > %1$d AND HOUR(FROM_UNIXTIME(`Shifts`.`end`)) < %2$d)
-                    OR (HOUR(FROM_UNIXTIME(`Shifts`.`start`)) > %1$d AND HOUR(FROM_UNIXTIME(`Shifts`.`start`)) < %2$d)
-                    OR (HOUR(FROM_UNIXTIME(`Shifts`.`start`)) <= %1$d AND HOUR(FROM_UNIXTIME(`Shifts`.`end`)) >= %2$d)
+                    (HOUR(shifts.end) > %1$d AND HOUR(shifts.end) < %2$d)
+                    OR (HOUR(shifts.start) > %1$d AND HOUR(shifts.start) < %2$d)
+                    OR (HOUR(shifts.start) <= %1$d AND HOUR(shifts.end) >= %2$d)
                 ))
-                * (`Shifts`.`end` - `Shifts`.`start`)
-                * (1 - (%3$d + 1) * `ShiftEntry`.`freeloaded`)
+                * (UNIX_TIMESTAMP(shifts.end) - UNIX_TIMESTAMP(shifts.start))
+                * (1 - (%3$d + 1) * `shift_entries`.`freeloaded`)
             ), 0)
         ',
         $nightShifts['start'],

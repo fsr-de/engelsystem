@@ -46,9 +46,9 @@ function Room_view(Room $room, ShiftsFilterRenderer $shiftsFilterRenderer, Shift
     $tabs[__('Shifts')] = div('first', [
         $shiftsFilterRenderer->render(page_link_to('rooms', [
             'action'  => 'view',
-            'room_id' => $room->id
+            'room_id' => $room->id,
         ]), ['rooms' => [$room->id]]),
-        $shiftCalendarRenderer->render()
+        $shiftCalendarRenderer->render(),
     ]);
 
     $selected_tab = 0;
@@ -57,19 +57,13 @@ function Room_view(Room $room, ShiftsFilterRenderer $shiftsFilterRenderer, Shift
         $selected_tab = count($tabs) - 1;
     }
 
-    return page_with_title(icon('geo-alt') . $room->name, [
+    return page_with_title(icon('pin-map-fill') . $room->name, [
         $assignNotice,
         auth()->can('admin_rooms') ? buttons([
             button(
-                page_link_to('admin_rooms', ['show' => 'edit', 'id' => $room->id]),
-                __('edit'),
-                'btn'
+                page_link_to('admin/rooms/edit/' . $room->id),
+                icon('pencil') . __('edit')
             ),
-            button(
-                page_link_to('admin_rooms', ['show' => 'delete', 'id' => $room->id]),
-                __('delete'),
-                'btn'
-            )
         ]) : '',
         $dect,
         $description,
@@ -85,8 +79,8 @@ function Room_view(Room $room, ShiftsFilterRenderer $shiftsFilterRenderer, Shift
 function Room_name_render(Room $room)
 {
     if (auth()->can('view_rooms')) {
-        return '<a href="' . room_link($room) . '">' . icon('geo-alt') . $room->name . '</a>';
+        return '<a href="' . room_link($room) . '">' . icon('pin-map-fill') . $room->name . '</a>';
     }
 
-    return icon('geo-alt') . $room->name;
+    return icon('pin-map-fill') . $room->name;
 }

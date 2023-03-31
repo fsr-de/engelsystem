@@ -76,6 +76,15 @@ msgstr "Delete"
 msgid "form.updated"
 msgstr "Updated"
 
+msgid "form.cancel"
+msgstr "Cancel"
+
+msgid "form.required"
+msgstr "Required"
+
+msgid "form.markdown"
+msgstr "You can use Markdown here"
+
 msgid "schedule.import"
 msgstr "Import schedule"
 
@@ -142,6 +151,9 @@ msgstr "Title"
 msgid "schedule.import.shift.room"
 msgstr "Room"
 
+msgid "shifts_history.schedule"
+msgstr "Schedule: %s"
+
 msgid "news.title"
 msgstr "News"
 
@@ -180,6 +192,9 @@ msgstr "Subject"
 
 msgid "news.edit.is_meeting"
 msgstr "Meeting"
+
+msgid "news.edit.is_important"
+msgstr "Important"
 
 msgid "news.edit.is_pinned"
 msgstr "Pin to top"
@@ -252,6 +267,9 @@ msgstr "The %s is allowed to send me an e-mail (e.g. when my shifts change)."
 
 msgid "settings.profile.email_news"
 msgstr "Notify me of new news."
+
+msgid "settings.profile.email_messages"
+msgstr "Notify me on new private messages."
 
 msgid "settings.profile.email_by_human_allowed"
 msgstr "Allow heaven angels to contact you by e-mail."
@@ -362,6 +380,9 @@ msgstr "Answer"
 msgid "user.edit.shirt"
 msgstr "Edit shirt"
 
+msgid "user.edit.goodie"
+msgstr "Edit goodie"
+
 msgid "form.shirt"
 msgstr "Shirt"
 
@@ -380,6 +401,9 @@ msgstr "Arrived"
 msgid "user.got_shirt"
 msgstr "Got shirt"
 
+msgid "user.got_goodie"
+msgstr "Got goodie"
+
 msgid "message.title"
 msgstr "Messages"
 
@@ -397,3 +421,76 @@ msgstr "Angel"
 
 msgid "date"
 msgstr "Date"
+
+msgid "worklog.add"
+msgstr "Add work log"
+
+msgid "worklog.edit"
+msgstr "Edit work log"
+
+msgid "worklog.date"
+msgstr "Work date"
+
+msgid "worklog.hours"
+msgstr "Work hours"
+
+msgid "worklog.comment"
+msgstr "Comment"
+
+msgid "worklog.delete"
+msgstr "Delete work log"
+
+msgid "worklog.delete.info"
+msgstr "Do you really want to delete the work log for %s?"
+
+msgid "angeltypes.angeltypes"
+msgstr "Angeltypes"
+
+msgid "angeltypes.about"
+msgstr "Teams-/Job description"
+
+msgid "angeltypes.about.text"
+msgstr "Here you can find the list of teams and their tasks. If you have further questions, have a look at the FAQ."
+
+msgid "angeltypes.restricted.hint"
+msgstr "This angeltype requires the attendance at an introduction meeting. "
+"You might find additional information in the description."
+
+msgid "angeltypes.name"
+msgstr "Name"
+
+msgid "angeltypes.dect"
+msgstr "DECT"
+
+msgid "angeltypes.email"
+msgstr "E-Mail"
+
+msgid "registration.register"
+msgstr "Register"
+
+msgid "room.rooms"
+msgstr "Rooms"
+
+msgid "room.name"
+msgstr "Name"
+
+msgid "room.dect"
+msgstr "DECT"
+
+msgid "room.map_url"
+msgstr "Map"
+
+msgid "room.description"
+msgstr "Description"
+
+msgid "room.required_angels"
+msgstr "Required angels"
+
+msgid "room.map_url.info"
+msgstr "The map will be embedded on the room page as an iframe."
+
+msgid "room.create.title"
+msgstr "Create room"
+
+msgid "room.edit.title"
+msgstr "Edit room"

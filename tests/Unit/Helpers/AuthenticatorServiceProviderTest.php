@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Engelsystem\Test\Unit\Helpers;
 
 use Engelsystem\Application;
@@ -15,7 +17,7 @@ class AuthenticatorServiceProviderTest extends ServiceProviderTest
     /**
      * @covers \Engelsystem\Helpers\AuthenticatorServiceProvider::register()
      */
-    public function testRegister()
+    public function testRegister(): void
     {
         $app = new Application();
         $app->bind(ServerRequestInterface::class, Request::class);

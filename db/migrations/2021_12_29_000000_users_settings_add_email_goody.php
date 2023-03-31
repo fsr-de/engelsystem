@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Engelsystem\Migrations;
 
 use Engelsystem\Database\Migration\Migration;
@@ -12,16 +14,13 @@ class UsersSettingsAddEmailGoody extends Migration
     /**
      * Run the migration
      */
-    public function up()
+    public function up(): void
     {
         $connection = $this->schema->getConnection();
 
-        $this->schema->table(
-            'users_settings',
-            function (Blueprint $table) {
-                $table->boolean('email_goody')->default(false)->after('email_human');
-            }
-        );
+        $this->schema->table('users_settings', function (Blueprint $table): void {
+            $table->boolean('email_goody')->default(false)->after('email_human');
+        });
 
         $connection
             ->table('users_settings')
@@ -31,13 +30,10 @@ class UsersSettingsAddEmailGoody extends Migration
     /**
      * Reverse the migration
      */
-    public function down()
+    public function down(): void
     {
-        $this->schema->table(
-            'users_settings',
-            function (Blueprint $table) {
-                $table->dropColumn('email_goody');
-            }
-        );
+        $this->schema->table('users_settings', function (Blueprint $table): void {
+            $table->dropColumn('email_goody');
+        });
     }
 }

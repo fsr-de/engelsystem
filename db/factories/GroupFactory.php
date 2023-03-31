@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Factories\Engelsystem\Models;
 
 use Engelsystem\Models\Group;
@@ -8,15 +10,12 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class GroupFactory extends Factory
 {
     /** @var string */
-    protected $model = Group::class;
+    protected $model = Group::class; // phpcs:ignore
 
-    /**
-     * @return array
-     */
-    public function definition()
+    public function definition(): array
     {
         return [
-            'name' => $this->faker->word(),
+            'name' => $this->faker->unique()->word(),
         ];
     }
 }

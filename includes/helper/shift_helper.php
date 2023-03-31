@@ -2,7 +2,7 @@
 
 namespace Engelsystem\Events\Listener;
 
-use Engelsystem\Helpers\Carbon;
+use Carbon\Carbon;
 use Engelsystem\Helpers\Shifts;
 use Engelsystem\Mail\EngelsystemMailer;
 use Engelsystem\Models\Room;
@@ -13,34 +13,12 @@ use Symfony\Component\Mailer\Exception\TransportException;
 
 class Shift
 {
-    /** @var LoggerInterface */
-    protected LoggerInterface $log;
-
-    /** @var EngelsystemMailer */
-    protected EngelsystemMailer $mailer;
-
-    /**
-     * @param LoggerInterface   $log
-     * @param EngelsystemMailer $mailer
-     */
     public function __construct(
-        LoggerInterface $log,
-        EngelsystemMailer $mailer
+        protected LoggerInterface $log,
+        protected EngelsystemMailer $mailer
     ) {
-        $this->log = $log;
-        $this->mailer = $mailer;
     }
 
-    /**
-     * @param User   $user
-     * @param Carbon $start
-     * @param Carbon $end
-     * @param string $name
-     * @param string $title
-     * @param string $type
-     * @param Room   $room
-     * @return void
-     */
     public function deletedEntryCreateWorklog(
         User $user,
         Carbon $start,
@@ -63,13 +41,13 @@ class Shift
             (($end->timestamp - $start->timestamp) / 60 / 60)
             * Shifts::getNightShiftMultiplier($start, $end);
         $workLog->comment = sprintf(
-            '%s (%s as %s) in %s, %s - %s',
+            __('%s (%s as %s) in %s, %s - %s'),
             $name,
             $title,
             $type,
             $room->name,
-            $start->format('Y-m-d H:i'),
-            $end->format('Y-m-d H:i')
+            $start->format(__('Y-m-d H:i')),
+            $end->format(__('Y-m-d H:i'))
         );
         $workLog->save();
 
@@ -79,16 +57,6 @@ class Shift
         );
     }
 
-    /**
-     * @param User   $user
-     * @param Carbon $start
-     * @param Carbon $end
-     * @param string $name
-     * @param string $title
-     * @param string $type
-     * @param Room   $room
-     * @return void
-     */
     public function deletedEntrySendEmail(
         User $user,
         Carbon $start,
@@ -116,7 +84,7 @@ class Shift
                     'end'        => $end,
                     'room'       => $room,
                     'freeloaded' => $freeloaded,
-                    'username'   => $user->name,
+                    'username'   => $user->displayName,
                 ]
             );
         } catch (TransportException $e) {

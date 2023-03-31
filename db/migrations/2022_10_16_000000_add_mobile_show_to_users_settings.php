@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Engelsystem\Migrations;
 
 use Engelsystem\Database\Migration\Migration;
@@ -10,26 +12,20 @@ class AddMobileShowToUsersSettings extends Migration
     /**
      * Run the migration
      */
-    public function up()
+    public function up(): void
     {
-        $this->schema->table(
-            'users_settings',
-            function (Blueprint $table) {
-                $table->boolean('mobile_show')->default(false)->after('email_news');
-            }
-        );
+        $this->schema->table('users_settings', function (Blueprint $table): void {
+            $table->boolean('mobile_show')->default(false)->after('email_news');
+        });
     }
 
     /**
      * Reverse the migration
      */
-    public function down()
+    public function down(): void
     {
-        $this->schema->table(
-            'users_settings',
-            function (Blueprint $table) {
-                $table->dropColumn('mobile_show');
-            }
-        );
+        $this->schema->table('users_settings', function (Blueprint $table): void {
+            $table->dropColumn('mobile_show');
+        });
     }
 }

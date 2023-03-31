@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Engelsystem\Test\Unit\Controllers;
 
 use Carbon\Carbon;
@@ -9,6 +11,8 @@ use Engelsystem\Test\Unit\TestCase;
 
 class ChecksArrivalsAndDeparturesTest extends TestCase
 {
+    private Config $config;
+
     public function invalidArrivalCombinations(): array
     {
         return [
@@ -56,8 +60,12 @@ class ChecksArrivalsAndDeparturesTest extends TestCase
      * @covers \Engelsystem\Controllers\ChecksArrivalsAndDepartures::isAfterTeardown
      * @dataProvider invalidArrivalCombinations
      */
-    public function testCheckInvalidDatesForArrival($buildup, $teardown, $arrival, $departure)
-    {
+    public function testCheckInvalidDatesForArrival(
+        ?string $buildup,
+        ?string $teardown,
+        ?string $arrival,
+        ?string $departure
+    ): void {
         config(['buildup_start' => is_null($buildup) ? null : new Carbon($buildup)]);
         config(['teardown_end' => is_null($teardown) ? null : new Carbon($teardown)]);
 
@@ -72,8 +80,12 @@ class ChecksArrivalsAndDeparturesTest extends TestCase
      * @covers \Engelsystem\Controllers\ChecksArrivalsAndDepartures::isAfterTeardown
      * @dataProvider invalidDepartureCombinations
      */
-    public function testCheckInvalidDatesForDeparture($buildup, $teardown, $arrival, $departure)
-    {
+    public function testCheckInvalidDatesForDeparture(
+        ?string $buildup,
+        ?string $teardown,
+        ?string $arrival,
+        ?string $departure
+    ): void {
         config(['buildup_start' => is_null($buildup) ? null : new Carbon($buildup)]);
         config(['teardown_end' => is_null($teardown) ? null : new Carbon($teardown)]);
 
@@ -88,8 +100,12 @@ class ChecksArrivalsAndDeparturesTest extends TestCase
      * @covers \Engelsystem\Controllers\ChecksArrivalsAndDepartures::isAfterTeardown
      * @dataProvider validArrivalCombinations
      */
-    public function testCheckValidDatesForArrival($buildup, $teardown, $arrival, $departure)
-    {
+    public function testCheckValidDatesForArrival(
+        ?string $buildup,
+        ?string $teardown,
+        ?string $arrival,
+        ?string $departure
+    ): void {
         config(['buildup_start' => is_null($buildup) ? null : new Carbon($buildup)]);
         config(['teardown_end' => is_null($teardown) ? null : new Carbon($teardown)]);
 
@@ -104,8 +120,12 @@ class ChecksArrivalsAndDeparturesTest extends TestCase
      * @covers \Engelsystem\Controllers\ChecksArrivalsAndDepartures::isAfterTeardown
      * @dataProvider validDepartureCombinations
      */
-    public function testCheckValidDatesForDeparture($buildup, $teardown, $arrival, $departure)
-    {
+    public function testCheckValidDatesForDeparture(
+        ?string $buildup,
+        ?string $teardown,
+        ?string $arrival,
+        ?string $departure
+    ): void {
         config(['buildup_start' => is_null($buildup) ? null : new Carbon($buildup)]);
         config(['teardown_end' => is_null($teardown) ? null : new Carbon($teardown)]);
 

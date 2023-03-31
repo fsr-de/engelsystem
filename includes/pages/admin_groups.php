@@ -42,9 +42,9 @@ function admin_groups()
                         'admin_groups',
                         ['action' => 'edit', 'id' => $group->id]
                     ),
-                    __('edit'),
+                    icon('pencil') . __('edit'),
                     'btn-sm'
-                )
+                ),
             ];
         }
 
@@ -52,14 +52,14 @@ function admin_groups()
             table([
                 'name'       => __('Name'),
                 'privileges' => __('Privileges'),
-                'actions'    => ''
-            ], $groups_table)
+                'actions'    => '',
+            ], $groups_table),
         ]);
     } else {
         switch ($request->input('action')) {
             case 'edit':
                 if ($request->has('id')) {
-                    $group_id = (int)$request->input('id');
+                    $group_id = (int) $request->input('id');
                 } else {
                     return error('Incomplete call, missing Groups ID.', true);
                 }
@@ -84,7 +84,7 @@ function admin_groups()
                         form(
                             $privileges_form,
                             page_link_to('admin_groups', ['action' => 'save', 'id' => $group->id])
-                        )
+                        ),
                     ]);
                 } else {
                     return error('No Group found.', true);
@@ -96,7 +96,7 @@ function admin_groups()
                     $request->has('id')
                     && $request->hasPostData('submit')
                 ) {
-                    $group_id = (int)$request->input('id');
+                    $group_id = (int) $request->input('id');
                 } else {
                     return error('Incomplete call, missing Groups ID.', true);
                 }
@@ -145,6 +145,6 @@ function groupPrivilegesWithSelected(Group $group): Collection
         ->orderBy('name')
         ->get([
             'privileges.*',
-            'group_privileges.group_id as selected'
+            'group_privileges.group_id as selected',
         ]);
 }

@@ -240,7 +240,10 @@
                         {{ f.textarea('form-input-textarea', 'Textarea', {'rows': 2, 'value': lipsum}) }}
                     </div>
                     <div class="col-md-3 col-lg-2">
-                        {{ f.select('form-input-select', {'lorem': 'Ipsum', 'dolor': 'Sit'}, 'Select', 'dolor') }}
+                        {{ f.select('form-input-select-1', {'opt1': 'Option 1', 'opt2': 'Option 2', 'opt3': 'Another option', 'opt4': 'A looooooooong item item item item'}, 'Select 1', 'opt1') }}
+                        {{ f.select('form-input-select-2', {'sh': 'Bash', 'js': 'JavaScript', 'p': 'PHP', 'py': 'Python'}, 'Select 2', 'js') }}
+                        {{ f.select('form-input-select-2', selectOptions, 'Select 3', 'Option 7') }}
+                        {{ f.select('date-select', dateSelectOptions, 'Date select') }}
                     </div>
                     <div class="col-md-3 col-lg-2">
                         <label class="form-label">Button</label>
@@ -249,36 +252,52 @@
                         </div>
                     </div>
                     <div class="col-md-3 col-lg-2">
-                        Submit button<br>
-                        {{ f.submit() }}
+                        Form submit
+                        <form id="form">
+                            {{ f.submit() }}
+                        </form>
                     </div>
-                    <div class="col-md-3 col-lg-2">
+                    <div id="checkboxes" class="col-md-3 col-lg-2">
                         Checkbox<br>
-                        {{ f.checkbox('form-input-checkbox', 'Checkbox', true) }}
-                        {{ f.checkbox('form-input-checkbox-2', 'Checkbox 2') }}
+                        {{ f.checkbox('form-input-checkbox', 'Checkbox 1', true, '1') }}
+                        {{ f.checkbox('form-input-checkbox-2', 'Checkbox 2', false, '2') }}
+                        {{ f.checkbox('form-input-checkbox-3', 'Checkbox 3', false, '3') }}
+                        <div class="d-grid gap-2">
+                            <div id="select-all-checkboxes" class="btn btn-sm btn-block btn-primary">
+                                Select all
+                            </div>
+                            <div id="select-23-checkboxes" class="btn btn-sm btn-block btn-primary">
+                                Select 2, 3
+                            </div>
+                            <div id="unselect-all-checkboxes" class="btn btn-sm btn-block btn-danger">
+                                Unselect all
+                            </div>
+                        </div>
                     </div>
                     <div class="col-md-3 col-lg-2 checkbox-inline">
                         Radio<br>
-                        <label>
-                            <input type="radio" checked="checked" name="form-input-radio" value="1"> Yey
-                        </label>
-                        <label>
-                            <input type="radio" name="form-input-radio"> Nay
-                        </label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" id="yey" checked="checked" name="form-input-radio" value="1">
+                            <label class="form-check-label" for="yey">Yey</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" id="nay" name="form-input-radio">
+                            <label class="form-check-label" for="nay">Nay</label>
+                        </div>
                     </div>
                 </div>
                 <div class="row">
                     <div class="col-md-3 col-lg-2">
                         <label class="form-label" for="input_date">Date</label>
-                        <div class="input-group date">
-                            <input id="input_date" type="date" placeholder="YYYY-MM-DD" pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}" name="design-date" class="form-control" value="2021-09-15">
-                        </div>
+                        <input id="input_date" type="date" placeholder="YYYY-MM-DD" pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}" name="design-date" class="form-control" value="2021-09-15">
                     </div>
                     <div class="col-md-3 col-lg-2">
                         <label class="form-label" for="input_datetime_local">Datetime</label>
-                        <div class="input-group datetime">
-                            <input id="input_datetime_local" type="datetime-local" placeholder="YYYY-MM-DD HH:MM" pattern="[0-9]{4}-[0-9]{2}-[0-9]{2} ([01][0-9]|2[0-3]):[0-5][0-9]" name="design-datetime" class="form-control" value="2021-09-15T13:37">
-                        </div>
+                        <input id="input_datetime_local" type="datetime-local" placeholder="YYYY-MM-DD HH:MM" pattern="[0-9]{4}-[0-9]{2}-[0-9]{2} ([01][0-9]|2[0-3]):[0-5][0-9]" name="design-datetime" class="form-control" value="2021-09-15T13:37">
+                    </div>
+                    <div class="col-md-3 col-lg-2">
+                        <label class="form-label" for="input_time">Time</label>
+                        <input type="time" class="form-control" id="input_time" name="input_time" size="5" pattern="^\d{1,2}:\d{2}$" placeholder="HH:MM" maxlength="5" value="13:37">
                     </div>
                 </div>
             </div>
@@ -310,20 +329,20 @@
             <div class="col">
                 <h4>Countdowns</h4>
                 <ul>
-                    <li data-countdown-ts="{{ timestamp30s }}">30s: %c</li>
-                    <li data-countdown-ts="{{ timestamp30m }}">30m: %c</li>
-                    <li data-countdown-ts="{{ timestamp59m }}">59m: %c</li>
-                    <li data-countdown-ts="{{ timestamp1h }}">1h: %c</li>
-                    <li data-countdown-ts="{{ timestamp1h30m }}">1h 30m: %c</li>
-                    <li data-countdown-ts="{{ timestamp1h31m }}">1h 31m: %c</li>
-                    <li data-countdown-ts="{{ timestamp2h }}">2h: %c</li>
-                    <li data-countdown-ts="{{ timestamp2d }}">2d: %c</li>
-                    <li data-countdown-ts="{{ timestamp3m }}">3m: %c</li>
-                    <li data-countdown-ts="{{ timestamp22y }}">22y: %c</li>
+                    <li title="{{ timestamp30s.format(__('Y-m-d H:i')) }}" data-countdown-ts="{{ timestamp30s.getTimestamp() }}">30s: %c</li>
+                    <li title="{{ timestamp30m.format(__('Y-m-d H:i')) }}" data-countdown-ts="{{ timestamp30m.getTimestamp() }}">30m: %c</li>
+                    <li title="{{ timestamp59m.format(__('Y-m-d H:i')) }}" data-countdown-ts="{{ timestamp59m.getTimestamp() }}">59m: %c</li>
+                    <li title="{{ timestamp1h.format(__('Y-m-d H:i')) }}" data-countdown-ts="{{ timestamp1h.getTimestamp() }}">1h: %c</li>
+                    <li title="{{ timestamp1h30m.format(__('Y-m-d H:i')) }}" data-countdown-ts="{{ timestamp1h30m.getTimestamp() }}">1h 30m: %c</li>
+                    <li title="{{ timestamp1h31m.format(__('Y-m-d H:i')) }}" data-countdown-ts="{{ timestamp1h31m.getTimestamp() }}">1h 31m: %c</li>
+                    <li title="{{ timestamp2h.format(__('Y-m-d H:i')) }}" data-countdown-ts="{{ timestamp2h.getTimestamp() }}">2h: %c</li>
+                    <li title="{{ timestamp2d.format(__('Y-m-d H:i')) }}" data-countdown-ts="{{ timestamp2d.getTimestamp() }}">2d: %c</li>
+                    <li title="{{ timestamp3m.format(__('Y-m-d H:i')) }}" data-countdown-ts="{{ timestamp3m.getTimestamp() }}">3m: %c</li>
+                    <li title="{{ timestamp22y.format(__('Y-m-d H:i')) }}" data-countdown-ts="{{ timestamp22y.getTimestamp() }}">22y: %c</li>
                 </ul>
                 <ul>
-                    <li data-countdown-ts="{{ timestamp30mago }}">30m ago: %c</li>
-                    <li data-countdown-ts="{{ timestamp45mago }}">45m ago: %c</li>
+                    <li title="{{ timestamp30mago.format(__('Y-m-d H:i')) }}" data-countdown-ts="{{ timestamp30mago.getTimestamp() }}">30m ago: %c</li>
+                    <li title="{{ timestamp45mago.format(__('Y-m-d H:i')) }}" data-countdown-ts="{{ timestamp45mago.getTimestamp() }}">45m ago: %c</li>
                 </ul>
             </div>
         </div>
@@ -339,6 +358,10 @@
             <div class="col-md-3">
                 <h4><code>icon(icon_name)</code></h4>
                 <p>{{ m.icon('star') }}</p>
+            </div>
+            <div class="col-md-3">
+                <h4><code>iconBool(true)</code></h4>
+                <p>{{ m.iconBool(true) }} {{ m.iconBool(false) }}</p>
             </div>
             <div class="col-md-3">
                 <h4><code>alert(message, type)</code></h4>
@@ -408,4 +431,22 @@
         {{ bar_chart | raw }}
     </div>
     </div>
+    <script>
+        document.getElementById('select-all-checkboxes').addEventListener('click', () => {
+            checkAll('checkboxes', true);
+        });
+
+        document.getElementById('unselect-all-checkboxes').addEventListener('click', () => {
+            checkAll('checkboxes', false);
+        });
+
+        document.getElementById('select-23-checkboxes').addEventListener('click', () => {
+            checkOwnTypes('checkboxes', [2, 3]);
+        });
+
+        document.getElementById('form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            return false;
+        });
+    </script>
 {% endblock %}

@@ -1,58 +1,58 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Engelsystem\Helpers;
 
 use Carbon\Carbon;
 use Engelsystem\Models\Group;
 use Engelsystem\Models\User\User;
 use Engelsystem\Models\User\User as UserRepository;
+use Illuminate\Support\Str;
 use Psr\Http\Message\ServerRequestInterface;
 use Symfony\Component\HttpFoundation\Session\Session;
 
 class Authenticator
 {
-    /** @var User|null */
     protected ?User $user = null;
-
-    /** @var ServerRequestInterface */
-    protected ServerRequestInterface $request;
-
-    /** @var Session */
-    protected Session $session;
-
-    /** @var UserRepository */
-    protected UserRepository $userRepository;
 
     /** @var string[] */
     protected array $permissions = [];
 
-    /** @var int|string|null */
-    protected $passwordAlgorithm = PASSWORD_DEFAULT;
+    protected int|string|null $passwordAlgorithm = PASSWORD_DEFAULT;
 
-    /** @var int */
     protected int $defaultRole = 20;
 
-    /** @var int */
     protected int $guestRole = 10;
 
+    public function __construct(
+        protected ServerRequestInterface $request,
+        protected Session $session,
+        protected UserRepository $userRepository
+    ) {
+    }
+
     /**
-     * @param ServerRequestInterface $request
-     * @param Session                $session
-     * @param UserRepository         $userRepository
+     * Load the user from session or api auth
      */
-    public function __construct(ServerRequestInterface $request, Session $session, UserRepository $userRepository)
+    public function user(): ?User
     {
-        $this->request = $request;
-        $this->session = $session;
-        $this->userRepository = $userRepository;
+        if ($this->user) {
+            return $this->user;
+        }
+
+        $this->user = $this->userFromSession();
+        if (!$this->user && request()->getAttribute('route-api', false)) {
+            $this->user = $this->userFromApi();
+        }
+
+        return $this->user;
     }
 
     /**
      * Load the user from session
-     *
-     * @return User|null
      */
-    public function user(): ?User
+    public function userFromSession(): ?User
     {
         if ($this->user) {
             return $this->user;
@@ -63,56 +63,38 @@ class Authenticator
             return null;
         }
 
-        $user = $this
+        $this->user = $this
             ->userRepository
             ->find($userId);
-        if (!$user) {
-            return null;
-        }
-
-        $this->user = $user;
 
         return $this->user;
     }
 
     /**
-     * Get the user by his api key
-     *
-     * @param string $parameter
-     * @return User|null
+     * Get the user by its api key
      */
-    public function apiUser(string $parameter = 'api_key'): ?User
+    public function userFromApi(): ?User
     {
         if ($this->user) {
             return $this->user;
         }
 
-        $params = $this->request->getQueryParams();
-        if (!isset($params[$parameter])) {
-            return null;
+        $this->user = $this->userByHeaders();
+        if ($this->user) {
+            return $this->user;
         }
 
-        /** @var User|null $user */
-        $user = $this
-            ->userRepository
-            ->whereApiKey($params[$parameter])
-            ->first();
-        if (!$user) {
-            return $this->user();
-        }
-
-        $this->user = $user;
+        $this->user = $this->userByQueryParam();
 
         return $this->user;
     }
 
     /**
      * @param string[]|string $abilities
-     * @return bool
      */
-    public function can($abilities): bool
+    public function can(array|string $abilities): bool
     {
-        $abilities = (array)$abilities;
+        $abilities = (array) $abilities;
 
         if (empty($this->permissions)) {
             $user = $this->user();
@@ -142,11 +124,6 @@ class Authenticator
         return true;
     }
 
-    /**
-     * @param string $login
-     * @param string $password
-     * @return User|null
-     */
     public function authenticate(string $login, string $password): ?User
     {
         /** @var User $user */
@@ -166,11 +143,6 @@ class Authenticator
         return $user;
     }
 
-    /**
-     * @param User   $user
-     * @param string $password
-     * @return bool
-     */
     public function verifyPassword(User $user, string $password): bool
     {
         if (!password_verify($password, $user->password)) {
@@ -185,59 +157,81 @@ class Authenticator
     }
 
     /**
-     * @param User   $user
-     * @param string $password
+     * Get the user by authorization bearer or x-api-key headers
      */
-    public function setPassword(User $user, string $password)
+    protected function userByHeaders(): ?User
+    {
+        $header = $this->request->getHeader('authorization');
+        if (!empty($header) && Str::startsWith(Str::lower($header[0]), 'bearer ')) {
+            return $this->userByApiKey(Str::substr($header[0], 7));
+        }
+
+        $header = $this->request->getHeader('x-api-key');
+        if (!empty($header)) {
+            return $this->userByApiKey($header[0]);
+        }
+
+        return null;
+    }
+
+    /**
+     * Get the user by query parameters
+     */
+    protected function userByQueryParam(): ?User
+    {
+        $params = $this->request->getQueryParams();
+        if (!empty($params['key'])) {
+            $this->user = $this->userByApiKey($params['key']);
+        }
+
+        return $this->user;
+    }
+
+    /**
+     * Get the user by its api key
+     */
+    protected function userByApiKey(string $key): ?User
+    {
+        $this->user = $this
+            ->userRepository
+            ->whereApiKey($key)
+            ->first();
+
+        return $this->user;
+    }
+
+    public function setPassword(User $user, string $password): void
     {
         $user->password = password_hash($password, $this->passwordAlgorithm);
         $user->save();
     }
 
-    /**
-     * @return int|string|null
-     */
-    public function getPasswordAlgorithm()
+    public function getPasswordAlgorithm(): int|string|null
     {
         return $this->passwordAlgorithm;
     }
 
-    /**
-     * @param int|string|null $passwordAlgorithm
-     */
-    public function setPasswordAlgorithm($passwordAlgorithm)
+    public function setPasswordAlgorithm(int|string|null $passwordAlgorithm): void
     {
         $this->passwordAlgorithm = $passwordAlgorithm;
     }
 
-    /**
-     * @return int
-     */
     public function getDefaultRole(): int
     {
         return $this->defaultRole;
     }
 
-    /**
-     * @param int $defaultRole
-     */
-    public function setDefaultRole(int $defaultRole)
+    public function setDefaultRole(int $defaultRole): void
     {
         $this->defaultRole = $defaultRole;
     }
 
-    /**
-     * @return int
-     */
     public function getGuestRole(): int
     {
         return $this->guestRole;
     }
 
-    /**
-     * @param int $guestRole
-     */
-    public function setGuestRole(int $guestRole)
+    public function setGuestRole(int $guestRole): void
     {
         $this->guestRole = $guestRole;
     }

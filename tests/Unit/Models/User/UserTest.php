@@ -1,9 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Engelsystem\Test\Unit\Models\User;
 
 use Carbon\Carbon;
 use DMS\PHPUnitExtensions\ArraySubset\ArraySubsetAsserts;
+use Engelsystem\Config\Config;
+use Engelsystem\Models\AngelType;
 use Engelsystem\Models\BaseModel;
 use Engelsystem\Models\Group;
 use Engelsystem\Models\News;
@@ -11,6 +15,8 @@ use Engelsystem\Models\NewsComment;
 use Engelsystem\Models\OAuth;
 use Engelsystem\Models\Privilege;
 use Engelsystem\Models\Question;
+use Engelsystem\Models\Shifts\Shift;
+use Engelsystem\Models\Shifts\ShiftEntry;
 use Engelsystem\Models\User\Contact;
 use Engelsystem\Models\User\HasUserModel;
 use Engelsystem\Models\User\License;
@@ -18,6 +24,7 @@ use Engelsystem\Models\User\PersonalData;
 use Engelsystem\Models\User\Settings;
 use Engelsystem\Models\User\State;
 use Engelsystem\Models\User\User;
+use Engelsystem\Models\UserAngelType;
 use Engelsystem\Models\Worklog;
 use Engelsystem\Test\Unit\Models\ModelTest;
 use Exception;
@@ -29,17 +36,14 @@ class UserTest extends ModelTest
     use ArraySubsetAsserts;
 
     /** @var string[] */
-    protected $data = [
+    protected array $data = [
         'name'     => 'lorem',
         'password' => '',
         'email'    => 'foo@bar.batz',
         'api_key'  => '',
     ];
 
-    /**
-     * @return array
-     */
-    public function hasOneRelationsProvider()
+    public function hasOneRelationsProvider(): array
     {
         return [
             [
@@ -104,8 +108,8 @@ class UserTest extends ModelTest
                         'text'       => 'Lorem ipsum dolor sit amet, consectetuer adipiscing elit.',
                         'is_meeting' => true,
                     ],
-                ]
-            ]
+                ],
+            ],
         ];
     }
 
@@ -124,9 +128,9 @@ class UserTest extends ModelTest
                     ],
                     [
                         'name' => 'Ipsum',
-                    ]
-                ]
-            ]
+                    ],
+                ],
+            ],
         ];
     }
 
@@ -139,12 +143,9 @@ class UserTest extends ModelTest
      *
      * @dataProvider hasOneRelationsProvider
      *
-     * @param string $class
-     * @param string $name
-     * @param array  $data
      * @throws Exception
      */
-    public function testHasOneRelations($class, $name, $data)
+    public function testHasOneRelations(string $class, string $name, array $data): void
     {
         $user = new User($this->data);
         $user->save();
@@ -155,7 +156,7 @@ class UserTest extends ModelTest
             ->associate($user)
             ->save();
 
-        $this->assertArraySubset($data, (array)$user->{$name}->attributesToArray());
+        $this->assertArraySubset($data, (array) $user->{$name}->attributesToArray());
     }
 
     /**
@@ -213,10 +214,78 @@ class UserTest extends ModelTest
     }
 
     /**
+     * @covers \Engelsystem\Models\User\User::isFreeloader
+     */
+    public function testIsFreeloader(): void
+    {
+        $this->app->instance('config', new Config([
+            'max_freeloadable_shifts' => 2,
+        ]));
+
+        $user = new User($this->data);
+        $user->save();
+        $this->assertFalse($user->isFreeloader());
+
+        ShiftEntry::factory()->create(['user_id' => $user->id]);
+        ShiftEntry::factory()->create(['user_id' => $user->id, 'freeloaded' => true]);
+        $this->assertFalse($user->isFreeloader());
+
+        ShiftEntry::factory()->create(['user_id' => $user->id, 'freeloaded' => true]);
+        $this->assertTrue($user->isFreeloader());
+
+        ShiftEntry::factory()->create(['user_id' => $user->id, 'freeloaded' => true]);
+        $this->assertTrue($user->isFreeloader());
+    }
+
+    /**
+     * @covers \Engelsystem\Models\User\User::userAngelTypes
+     */
+    public function testUserAngelTypes(): void
+    {
+        AngelType::factory(2)->create();
+        $angelType1 = AngelType::factory()->create();
+        AngelType::factory(1)->create();
+        $angelType2 = AngelType::factory()->create();
+
+        $user = new User($this->data);
+        $user->save();
+
+        $user->userAngelTypes()->attach($angelType1);
+        $user->userAngelTypes()->attach($angelType2);
+
+        /** @var UserAngelType $userAngelType */
+        $userAngelType = UserAngelType::find(1);
+        $this->assertEquals($user->id, $userAngelType->user->id);
+
+        $angeltypes = $user->userAngelTypes;
+        $this->assertCount(2, $angeltypes);
+    }
+
+    /**
+     * @covers \Engelsystem\Models\User\User::isAngelTypeSupporter
+     */
+    public function testIsAngelTypeSupporter(): void
+    {
+        /** @var AngelType $angelType1 */
+        $angelType1 = AngelType::factory()->create();
+        /** @var AngelType $angelType2 */
+        $angelType2 = AngelType::factory()->create();
+
+        $user = new User($this->data);
+        $user->save();
+
+        $user->userAngelTypes()->attach($angelType1, ['supporter' => true]);
+        $user->userAngelTypes()->attach($angelType2);
+
+        $this->assertTrue($user->isAngelTypeSupporter($angelType1));
+        $this->assertFalse($user->isAngelTypeSupporter($angelType2));
+    }
+
+    /**
      * @covers \Engelsystem\Models\User\User::privileges
      * @covers \Engelsystem\Models\User\User::getPrivilegesAttribute
      */
-    public function testPrivileges()
+    public function testPrivileges(): void
     {
         $user = new User($this->data);
         $user->save();
@@ -291,6 +360,19 @@ class UserTest extends ModelTest
         $oauth = $user->oauth;
 
         $this->assertCount(1, $oauth);
+    }
+
+    /**
+     * @covers \Engelsystem\Models\User\User::shiftEntries
+     */
+    public function testShiftEntries(): void
+    {
+        $user = new User($this->data);
+        $user->save();
+
+        ShiftEntry::factory(2)->create(['user_id' => $user->id]);
+
+        $this->assertCount(2, $user->shiftEntries);
     }
 
     /**
@@ -374,5 +456,68 @@ class UserTest extends ModelTest
         $this->assertCount(2, $answers);
         $this->assertContains($question1->id, $answers);
         $this->assertContains($question2->id, $answers);
+    }
+
+    /**
+     * @covers \Engelsystem\Models\User\User::shiftsCreated
+     * @covers \Engelsystem\Models\User\User::shiftsUpdated
+     */
+    public function testShiftsCreatedAndUpdated(): void
+    {
+        ($user1 = new User($this->data))->save();
+        ($user2 = new User(array_merge($this->data, ['name' => 'foo', 'email' => 'someone@bar.batz'])))->save();
+
+        Shift::factory()->create();
+        Shift::factory()->create(['created_by' => $user1->id]);
+        Shift::factory()->create(['created_by' => $user2->id, 'updated_by' => $user1->id]);
+        Shift::factory()->create(['created_by' => $user1->id, 'updated_by' => $user2->id]);
+        Shift::factory()->create(['created_by' => $user2->id, 'updated_by' => $user2->id]);
+        Shift::factory()->create(['created_by' => $user1->id]);
+
+        $user1 = User::find(1);
+        $this->assertCount(3, $user1->shiftsCreated);
+        $this->assertCount(1, $user1->shiftsUpdated);
+
+        $user2 = User::find(2);
+        $this->assertCount(2, $user2->shiftsCreated);
+        $this->assertCount(2, $user2->shiftsUpdated);
+    }
+
+    public function getDisplayNameAttributeProvider(): array
+    {
+        return [
+            ['lorem'],
+            ['lorem', ' '],
+            ['lorem', null, ' '],
+            ['lorem', ' ', ' '],
+            ['Test', 'Test', ' '],
+            ['Tester', ' ', 'Tester'],
+            ['Foo', 'Foo'],
+            ['Bar', null, 'Bar'],
+            ['Foo Bar', 'Foo', 'Bar'],
+            ['Some name', ' Some', ' name'],
+            ['Another Surname', ' Another ', ' Surname '],
+        ];
+    }
+
+    /**
+     * @covers       \Engelsystem\Models\User\User::getDisplayNameAttribute
+     * @dataProvider getDisplayNameAttributeProvider
+     */
+    public function testGetDisplayNameAttribute(
+        string $expected,
+        ?string $firstName = null,
+        ?string $lastName = null
+    ): void {
+        $this->app->instance('config', new Config());
+
+        ($user1 = new User($this->data))->save();
+        $user1->personalData->first_name = $firstName;
+        $user1->personalData->last_name = $lastName;
+
+        $this->assertEquals('lorem', $user1->displayName);
+
+        config(['display_full_name' => true]);
+        $this->assertEquals($expected, $user1->displayName);
     }
 }

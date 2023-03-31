@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Engelsystem\Helpers;
 
 use Engelsystem\Config\Config;
@@ -7,7 +9,7 @@ use Engelsystem\Container\ServiceProvider;
 
 class AuthenticatorServiceProvider extends ServiceProvider
 {
-    public function register()
+    public function register(): void
     {
         /** @var Config $config */
         $config = $this->app->get('config');

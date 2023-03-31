@@ -1,10 +1,5 @@
-require('core-js/stable');
-window.$ = window.jQuery = require('jquery');
+import 'core-js/stable';
 window.bootstrap = require('bootstrap');
-require('./forms');
-require('./sticky-headers');
-require('./countdown');
-
-$.ajaxSetup({
-    headers: {'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')}
-});
+import './forms';
+import './countdown';
+import './dashboard';
