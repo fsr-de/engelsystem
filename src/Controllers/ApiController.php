@@ -31,8 +31,8 @@ class ApiController extends BaseController
 
         $count = (Db::selectOne(
             '
-            SELECT COUNT(*) AS count FROM `ShiftEntry`, `users`
-            WHERE ShiftEntry.UID = users.id
+            SELECT COUNT(*) AS count FROM shift_entries, users
+            WHERE shift_entries.user_id = users.id 
             AND users.email = ?;
             ', [$email]
         ));
