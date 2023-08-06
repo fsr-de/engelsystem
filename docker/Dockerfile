@@ -51,6 +51,8 @@ COPY --from=data /app/ /var/www
 RUN chown -R www-data:www-data /var/www/storage/ && \
     rm -r /var/www/html
 
+COPY config/config.default.php config/config.php
+
 ARG VERSION
 RUN if [[ ! -f /var/www/storage/app/VERSION ]] && [[ ! -z "${VERSION}" ]]; then \
         echo -n "${VERSION}" > /var/www/storage/app/VERSION; fi
