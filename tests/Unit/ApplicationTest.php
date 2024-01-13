@@ -52,6 +52,7 @@ class ApplicationTest extends TestCase
         $this->assertTrue($app->has('path.config'));
         $this->assertTrue($app->has('path.lang'));
         $this->assertTrue($app->has('path.resources'));
+        $this->assertTrue($app->has('path.resources.api'));
         $this->assertTrue($app->has('path.views'));
         $this->assertTrue($app->has('path.storage'));
         $this->assertTrue($app->has('path.cache'));
@@ -114,7 +115,8 @@ class ApplicationTest extends TestCase
     {
         $app = new Application();
 
-        $mockClassName = $this->getMockClass(ServiceProvider::class);
+        $mock = $this->createMock(ServiceProvider::class);
+        $mockClassName = get_class($mock);
         $serviceProvider = $this->getMockBuilder($mockClassName)
             ->setConstructorArgs([$app])
             ->onlyMethods(['register'])

@@ -13,7 +13,7 @@ return [
         'password' => env('MYSQL_PASSWORD', ''),
     ],
 
-    // For accessing stats
+    // For accessing /metrics, /stats and custom FSR endpoints (e.g., pretix integration)
     'api_key'                 => env('API_KEY', ''),
 
     // Enable maintenance mode (show a static page)
@@ -25,19 +25,29 @@ return [
     // Set to development to enable debugging messages
     'environment'             => env('ENVIRONMENT', 'production'),
 
-    // Application URL and base path to use instead of the auto detected one
+    // Application URL and base path to use instead of the auto-detected one
     'url'                     => env('APP_URL', null),
 
     // Header links
     // Available link placeholders: %lang%
+    // To disable a header_item in the config.php, you can set its value to null
     'header_items'            => [
-        //'Foo' => 'https://foo.bar/batz-%lang%.html',
+        // Name can be a translation string, permission is a engelsystem privilege
+        // 'Name' => 'URL',
+        // 'Name' => ['URL', 'permission'],
+
+        //'Foo' => ['https://foo.bar/batz-%lang%.html', 'logout'], // Permission: for logged-in users
     ],
 
     // Footer links
+    // To disable a footer item in the config.php, you can set its value to null
     'footer_items'            => [
+        // Name can be a translation string, permission is a engelsystem privilege
+        // 'Name' => 'URL',
+        // 'Name' => ['URL', 'permission'],
+
         // URL to the angel faq and job description
-        'FAQ'     => env('FAQ_URL', '/faq'),
+        'faq.faq' => [env('FAQ_URL', '/faq'), 'faq.view'],
 
         // Contact email address, linked on every page
         'Contact' => env('CONTACT_EMAIL', 'mailto:mail@example.com'),
@@ -47,7 +57,7 @@ return [
     'faq_text'                => env('FAQ_TEXT', null),
 
     // Link to documentation/help
-    'documentation_url'       => 'https://engelsystem.de/doc/',
+    'documentation_url'       => env('DOCUMENTATION_URL', 'https://engelsystem.de/doc/'),
 
     // Email config
     'email'                   => [
@@ -69,7 +79,7 @@ return [
     ],
 
     # Your privacy@ contact address
-    'privacy_email' => '',
+    'privacy_email' => env('PRIVACY_EMAIL', null),
 
     // Initial admin password
     'setup_admin_password'    => env('SETUP_ADMIN_PASSWORD', null),
@@ -91,7 +101,7 @@ return [
             // User info URL which provides userdata
             'url_info' => env('OIDC_USERINFO_URL', ''),
             // OAuth Scopes
-            // 'scope' => ['openid'],
+            'scope' => ['openid', 'email', 'profile'],
             // Info unique user id field
             'id' => env('OIDC_ID_CLAIM', 'uuid'),
             // The following fields are used for registration
@@ -128,7 +138,19 @@ return [
     // Default theme, 1=style1.css
     'theme'                   => env('THEME', 1),
 
+    // Supported themes
+    // To disable a theme in the config.php, you can set its value to null
     'themes' => [
+        17 => [
+            'name' => 'Engelsystem 37c3 (2023)',
+            'type' => 'dark',
+            'navbar_classes' => 'navbar-dark',
+        ],
+        16 => [
+            'name' => 'Engelsystem cccamp23 (2023)',
+            'type' => 'dark',
+            'navbar_classes' => 'navbar-dark',
+        ],
         15 => [
             'name' => 'Engelsystem rC3 (2021)',
             'type' => 'dark',
@@ -221,6 +243,16 @@ return [
     // Users are able to sign up
     'registration_enabled'    => (bool) env('REGISTRATION_ENABLED', true),
 
+    // Required user fields
+    'required_user_fields' => [
+        'pronoun'            => (bool) env('PRONOUN_REQUIRED', false),
+        'firstname'          => (bool) env('FIRSTNAME_REQUIRED', false),
+        'lastname'           => (bool) env('LASTNAME_REQUIRED', false),
+        'tshirt_size'        => (bool) env('TSHIRT_SIZE_REQUIRED', true),
+        'mobile'             => (bool) env('MOBILE_REQUIRED', false),
+        'dect'               => (bool) env('DECT_REQUIRED', false),
+    ],
+
     // Only arrived angels can sign up for shifts
     'signup_requires_arrival' => (bool) env('SIGNUP_REQUIRES_ARRIVAL', false),
 
@@ -247,7 +279,7 @@ return [
     // Define the algorithm to use for `password_verify()`
     // If the user uses an old algorithm the password will be converted to the new format
     // See https://secure.php.net/manual/en/password.constants.php for a complete list
-    'password_algorithm'      => PASSWORD_DEFAULT,
+    'password_algorithm'      => env('PASSWORD_ALGORITHM', PASSWORD_DEFAULT),
 
     // The minimum length for passwords
     'min_password_length'     => env('PASSWORD_MINIMUM_LENGTH', 8),
@@ -262,6 +294,10 @@ return [
 
     // Whether the mobile number can be shown to other users
     'enable_mobile_show'      => (bool) env('ENABLE_MOBILE_SHOW', false),
+
+    // Regular expression describing a FALSE username.
+    // Per default usernames must only contain alphanumeric chars, "-", "_" or ".".
+    'username_regex' => (string) env('USERNAME_REGEX', '/([^\p{L}\p{N}_.-]+)/ui'),
 
     // Enables first name and last name
     'enable_user_name'        => (bool) env('ENABLE_USER_NAME', false),
@@ -311,7 +347,15 @@ return [
         'voucher_start'      => env('VOUCHER_START', null) ?: null,
     ],
 
+    # Instruction in accordance with § 43 Para. 1 of the German Infection Protection Act (IfSG)
+    'ifsg_enabled'           => (bool) env('IFSG_ENABLED', false),
+
+    # Instruction only onsite in accordance with § 43 Para. 1 of the German Infection Protection Act (IfSG)
+    'ifsg_light_enabled'           => (bool) env('IFSG_LIGHT_ENABLED', false)
+        && env('IFSG_ENABLED', false),
+
     // Available locales in /resources/lang/
+    // To disable a locale in the config.php, you can set its value to null
     'locales'                 => [
         'de_DE' => 'Deutsch',
         'en_US' => 'English',
@@ -320,20 +364,27 @@ return [
     // The default locale to use
     'default_locale'          => env('DEFAULT_LOCALE', 'en_US'),
 
-    // Available T-Shirt sizes, set value to null if not available
+    // Available T-Shirt sizes
+    // To disable a t-shirt size in the config.php, you can set its value to null
     'tshirt_sizes'            => [
         'S'    => 'Small Straight-Cut',
-        'S-G'  => 'Small Fitted-Cut',
+        'S-F'  => 'Small Fitted-Cut',
         'M'    => 'Medium Straight-Cut',
-        'M-G'  => 'Medium Fitted-Cut',
+        'M-F'  => 'Medium Fitted-Cut',
         'L'    => 'Large Straight-Cut',
-        'L-G'  => 'Large Fitted-Cut',
+        'L-F'  => 'Large Fitted-Cut',
         'XL'   => 'XLarge Straight-Cut',
-        'XL-G' => 'XLarge Fitted-Cut',
+        'XL-F' => 'XLarge Fitted-Cut',
         '2XL'  => '2XLarge Straight-Cut',
         '3XL'  => '3XLarge Straight-Cut',
         '4XL'  => '4XLarge Straight-Cut',
     ],
+
+    // Whether to show the current day of the event (-2, -1, 0, 1, 2…) in footer and on the dashboard.
+    // The event start date has to be set for it to appear.
+    'enable_show_day_of_event' => false,
+    // If true there will be a day 0 (-1, 0, 1…). If false there won't (-1, 1…)
+    'event_has_day0' => true,
 
     'metrics'                 => [
         // User work buckets in seconds
@@ -363,11 +414,16 @@ return [
 
     // Add additional headers
     'add_headers'             => (bool) env('ADD_HEADERS', true),
+    // Predefined headers
+    // To disable a header in the config.php, you can set its value to null
     'headers'                 => [
         'X-Content-Type-Options'  => 'nosniff',
         'X-Frame-Options'         => 'sameorigin',
         'Referrer-Policy'         => 'strict-origin-when-cross-origin',
-        'Content-Security-Policy' => 'default-src \'self\' \'unsafe-inline\' \'unsafe-eval\'; img-src \'self\' data:;',
+        'Content-Security-Policy' =>
+            'default-src \'self\'; '
+            . ' style-src \'self\' \'unsafe-inline\'; '
+            . 'img-src \'self\' data:;',
         'X-XSS-Protection'        => '1; mode=block',
         'Feature-Policy'          => 'autoplay \'none\'',
         //'Strict-Transport-Security' => 'max-age=7776000',

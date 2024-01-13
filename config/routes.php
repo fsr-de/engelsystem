@@ -8,6 +8,8 @@ use FastRoute\RouteCollector;
 
 // Pages
 $route->get('/', 'HomeController@index');
+$route->get('/register', 'RegistrationController@view');
+$route->post('/register', 'RegistrationController@save');
 $route->get('/credits', 'CreditsController@index');
 $route->get('/health', 'HealthController@index');
 
@@ -38,7 +40,14 @@ $route->addGroup(
         $route->post('/theme', 'SettingsController@saveTheme');
         $route->get('/language', 'SettingsController@language');
         $route->post('/language', 'SettingsController@saveLanguage');
+        $route->get('/certificates', 'SettingsController@certificate');
+        $route->post('/certificates/ifsg', 'SettingsController@saveIfsgCertificate');
+        $route->post('/certificates/driving', 'SettingsController@saveDrivingLicense');
+        $route->get('/api', 'SettingsController@api');
+        $route->post('/api', 'SettingsController@apiKeyReset');
         $route->get('/oauth', 'SettingsController@oauth');
+        $route->get('/sessions', 'SettingsController@sessions');
+        $route->post('/sessions', 'SettingsController@sessionsDelete');
     }
 );
 
@@ -60,6 +69,11 @@ $route->get('/stats', 'Metrics\\Controller@stats');
 // Angeltypes
 $route->addGroup('/angeltypes', function (RouteCollector $route): void {
     $route->get('/about', 'AngelTypesController@about');
+});
+
+// Shifts
+$route->addGroup('/shifts', function (RouteCollector $route): void {
+    $route->get('/random', 'ShiftsController@random');
 });
 
 // News
@@ -101,8 +115,46 @@ $route->addGroup(
 );
 
 // API
-$route->get('/api/usershifts[/{email:.+}]', 'ApiController@usershifts');
-$route->get('/api[/{resource:.+}]', 'ApiController@index');
+$route->addGroup(
+    '/api',
+    function (RouteCollector $route): void {
+        $route->get('', 'Api\IndexController@index');
+
+        $route->addGroup(
+            '/v0-beta',
+            function (RouteCollector $route): void {
+                $route->addRoute(['OPTIONS'], '[/{resource:.+}]', 'Api\IndexController@options');
+                $route->get('', 'Api\IndexController@indexV0');
+                $route->get('/openapi', 'Api\IndexController@openApiV0');
+                $route->get('/info', 'Api\IndexController@info');
+
+                $route->get('/angeltypes', 'Api\AngelTypeController@index');
+                $route->get('/angeltypes/{angeltype_id:\d+}/shifts', 'Api\ShiftsController@entriesByAngeltype');
+
+                $route->get('/locations', 'Api\LocationsController@index');
+                $route->get('/locations/{location_id:\d+}/shifts', 'Api\ShiftsController@entriesByLocation');
+
+                $route->get('/news', 'Api\NewsController@index');
+
+                $route->get('/users/{user_id:(?:\d+|self)}', 'Api\UsersController@user');
+                $route->get('/users/{user_id:(?:\d+|self)}/angeltypes', 'Api\AngelTypeController@ofUser');
+                $route->get('/users/{user_id:(?:\d+|self)}/shifts', 'Api\ShiftsController@entriesByUser');
+
+                $route->addRoute(
+                    ['POST', 'PUT', 'DELETE', 'PATCH'],
+                    '/[{resource:.+}]',
+                    'Api\IndexController@notImplemented'
+                );
+                $route->get('/[{resource:.+}]', 'Api\IndexController@notFound');
+            }
+        );
+
+        // Routes for custom FSR requests (e.g., pretix integration)
+        $route->get('/usershifts[/{email:.+}]', 'Api\FsrController@usershifts');
+
+        $route->get('/[{resource:.+}]', 'Api\IndexController@notFound');
+    }
+);
 
 // Feeds
 $route->get('/atom', 'FeedController@atom');
@@ -147,6 +199,27 @@ $route->addGroup(
             }
         );
 
+        // Shifts
+        $route->addGroup(
+            '/shifts',
+            function (RouteCollector $route): void {
+                $route->get('/history', 'Admin\\ShiftsController@history');
+                $route->post('/history', 'Admin\\ShiftsController@deleteTransaction');
+            }
+        );
+
+        // Shift types
+        $route->addGroup(
+            '/shifttypes',
+            function (RouteCollector $route): void {
+                $route->get('', 'Admin\\ShiftTypesController@index');
+                $route->post('', 'Admin\\ShiftTypesController@delete');
+                $route->get('/{shift_type_id:\d+}', 'Admin\\ShiftTypesController@view');
+                $route->get('/edit[/{shift_type_id:\d+}]', 'Admin\\ShiftTypesController@edit');
+                $route->post('/edit[/{shift_type_id:\d+}]', 'Admin\\ShiftTypesController@save');
+            }
+        );
+
         // Questions
         $route->addGroup(
             '/questions',
@@ -158,14 +231,14 @@ $route->addGroup(
             }
         );
 
-        // Rooms
+        // Locations
         $route->addGroup(
-            '/rooms',
+            '/locations',
             function (RouteCollector $route): void {
-                $route->get('', 'Admin\\RoomsController@index');
-                $route->post('', 'Admin\\RoomsController@delete');
-                $route->get('/edit[/{room_id:\d+}]', 'Admin\\RoomsController@edit');
-                $route->post('/edit[/{room_id:\d+}]', 'Admin\\RoomsController@save');
+                $route->get('', 'Admin\\LocationsController@index');
+                $route->post('', 'Admin\\LocationsController@delete');
+                $route->get('/edit[/{location_id:\d+}]', 'Admin\\LocationsController@edit');
+                $route->post('/edit[/{location_id:\d+}]', 'Admin\\LocationsController@save');
             }
         );
 

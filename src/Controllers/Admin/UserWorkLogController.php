@@ -52,7 +52,7 @@ class UserWorkLogController extends BaseController
             }
             return $this->showEditWorklog($user, $worklog->worked_at, $worklog->hours, $worklog->comment, true);
         } else {
-            return $this->showEditWorklog($user, $this->getWorkDateSuggestion());
+            return $this->showEditWorklog($user, Carbon::today());
         }
     }
 
@@ -64,9 +64,9 @@ class UserWorkLogController extends BaseController
         $user = $this->user->findOrFail($userId);
 
         $data = $this->validate($request, [
-            'work_date'  => 'required|date:Y-m-d',
+            'work_date' => 'required|date:Y-m-d',
             'work_hours' => 'float|min:0',
-            'comment'    => 'required|max:200',
+            'comment' => 'required|max:200',
         ]);
 
         if (isset($worklogId)) {
@@ -85,6 +85,16 @@ class UserWorkLogController extends BaseController
         $worklog->comment = $data['comment'];
         $worklog->save();
 
+        $this->log->info(
+            'Added worklog for {name} ({id}) at {time} spanning {hours}h: {text}',
+            [
+                'name' => $user->name,
+                'id' => $user->id,
+                'time' => $worklog->worked_at,
+                'hours' => $worklog->hours,
+                'text' => $worklog->comment,
+            ]
+        );
         $this->addNotification(isset($worklogId) ? 'worklog.edit.success' : 'worklog.add.success');
 
         return $this->redirect->to('/users?action=view&user_id=' . $userId);
@@ -121,6 +131,16 @@ class UserWorkLogController extends BaseController
         }
         $worklog->delete();
 
+        $this->log->info(
+            'Deleted worklog for {name} ({id}) at {time} spanning {hours}h: {text}',
+            [
+                'name' => $worklog->user->name,
+                'id' => $worklog->user->id,
+                'time' => $worklog->worked_at,
+                'hours' => $worklog->hours,
+                'text' => $worklog->comment,
+            ]
+        );
         $this->addNotification('worklog.delete.success');
 
         return $this->redirect->to('/users?action=view&user_id=' . $userId);
@@ -144,17 +164,5 @@ class UserWorkLogController extends BaseController
                 'is_edit' => $is_edit,
             ]
         );
-    }
-
-    private function getWorkDateSuggestion(): Carbon
-    {
-        $buildup_start = config('buildup_start');
-        $event_start = config('event_start');
-
-        $work_date_suggestion = Carbon::today();
-        if (!empty($buildup_start) && (empty($event_start) || $event_start->lessThan(Carbon::now()))) {
-            $work_date_suggestion = $buildup_start->startOfDay();
-        }
-        return $work_date_suggestion;
     }
 }

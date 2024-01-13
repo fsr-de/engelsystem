@@ -6,6 +6,7 @@ namespace Engelsystem\Test\Unit\Controllers\Metrics;
 
 use Carbon\Carbon;
 use Engelsystem\Controllers\Metrics\Stats;
+use Engelsystem\Models\AngelType;
 use Engelsystem\Models\Faq;
 use Engelsystem\Models\LogEntry;
 use Engelsystem\Models\Message;
@@ -13,9 +14,10 @@ use Engelsystem\Models\News;
 use Engelsystem\Models\NewsComment;
 use Engelsystem\Models\OAuth;
 use Engelsystem\Models\Question;
-use Engelsystem\Models\Room;
+use Engelsystem\Models\Location;
 use Engelsystem\Models\Shifts\Shift;
 use Engelsystem\Models\Shifts\ShiftEntry;
+use Engelsystem\Models\Shifts\ShiftType;
 use Engelsystem\Models\User\License;
 use Engelsystem\Models\User\PasswordReset;
 use Engelsystem\Models\User\PersonalData;
@@ -33,20 +35,9 @@ class StatsTest extends TestCase
     use HasDatabase;
 
     /**
-     * @covers \Engelsystem\Controllers\Metrics\Stats::__construct
-     * @covers \Engelsystem\Controllers\Metrics\Stats::newUsers
-     */
-    public function testNewUsers(): void
-    {
-        $this->addUsers();
-
-        $stats = new Stats($this->database);
-        $this->assertEquals(2, $stats->newUsers());
-    }
-
-    /**
      * @covers \Engelsystem\Controllers\Metrics\Stats::vouchers
      * @covers \Engelsystem\Controllers\Metrics\Stats::vouchersQuery
+     * @covers \Engelsystem\Controllers\Metrics\Stats::__construct
      */
     public function testVouchers(): void
     {
@@ -142,6 +133,8 @@ class StatsTest extends TestCase
         $this->assertEquals(0, $stats->licenses('3.5t'));
         $this->assertEquals(0, $stats->licenses('7.5t'));
         $this->assertEquals(1, $stats->licenses('12t'));
+        $this->assertEquals(0, $stats->licenses('ifsg_light'));
+        $this->assertEquals(0, $stats->licenses('ifsg'));
     }
 
     /**
@@ -196,17 +189,45 @@ class StatsTest extends TestCase
     }
 
     /**
-     * @covers \Engelsystem\Controllers\Metrics\Stats::rooms
+     * @covers \Engelsystem\Controllers\Metrics\Stats::locations
      */
-    public function testRooms(): void
+    public function testLocations(): void
     {
-        (new Room(['name' => 'Room 1']))->save();
-        (new Room(['name' => 'Second room']))->save();
-        (new Room(['name' => 'Another room']))->save();
-        (new Room(['name' => 'Old room']))->save();
+        (new Location(['name' => 'Location 1']))->save();
+        (new Location(['name' => 'Second location']))->save();
+        (new Location(['name' => 'Another location']))->save();
+        (new Location(['name' => 'Old location']))->save();
 
         $stats = new Stats($this->database);
-        $this->assertEquals(4, $stats->rooms());
+        $this->assertEquals(4, $stats->locations());
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\Metrics\Stats::angeltypes
+     */
+    public function testAngeltypes(): void
+    {
+        (new AngelType(['name' => 'AngelType 1']))->save();
+        (new AngelType(['name' => 'Second AngelType']))->save();
+        (new AngelType(['name' => 'Another AngelType']))->save();
+        (new AngelType(['name' => 'Old AngelType']))->save();
+
+        $stats = new Stats($this->database);
+        $this->assertEquals(4, $stats->angeltypes());
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\Metrics\Stats::shifttypes
+     */
+    public function testShifttypes(): void
+    {
+        (new ShiftType(['name' => 'ShiftType 1', 'description' => 'rtfm']))->save();
+        (new ShiftType(['name' => 'Second ShiftType', 'description' => 'pebkac']))->save();
+        (new ShiftType(['name' => 'Another ShiftType', 'description' => 'id10t error']))->save();
+        (new ShiftType(['name' => 'Old ShiftType', 'description' => 'layer 8']))->save();
+
+        $stats = new Stats($this->database);
+        $this->assertEquals(4, $stats->shifttypes());
     }
 
     /**
@@ -278,18 +299,33 @@ class StatsTest extends TestCase
     }
 
     /**
-     * @covers \Engelsystem\Controllers\Metrics\Stats::arrivedUsers
+     * @covers \Engelsystem\Controllers\Metrics\Stats::usersState
      */
-    public function testArrivedUsers(): void
+    public function testUsersState(): void
     {
         $this->addUsers();
         ShiftEntry::factory()->create(['user_id' => 3]);
         ShiftEntry::factory()->create(['user_id' => 4]);
+        ShiftEntry::factory()->create(['user_id' => 1]);
 
         $stats = new Stats($this->database);
-        $this->assertEquals(7, $stats->arrivedUsers());
-        $this->assertEquals(5, $stats->arrivedUsers(false));
-        $this->assertEquals(2, $stats->arrivedUsers(true));
+        $this->assertEquals(7, $stats->usersState());
+        $this->assertEquals(5, $stats->usersState(false));
+        $this->assertEquals(2, $stats->usersState(true));
+        $this->assertEquals(2, $stats->usersState(null, false));
+        $this->assertEquals(1, $stats->usersState(true, false));
+        $this->assertEquals(1, $stats->usersState(false, false));
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\Metrics\Stats::usersInfo
+     */
+    public function testUsersInfo(): void
+    {
+        $this->addUsers();
+
+        $stats = new Stats($this->database);
+        $this->assertEquals(1, $stats->usersInfo());
     }
 
     /**
@@ -479,7 +515,7 @@ class StatsTest extends TestCase
         $this->addUser(['arrived' => 1], ['pronoun' => 'unicorn'], ['language' => 'lo_RM', 'email_shiftinfo' => true]);
         $this->addUser(['arrived' => 1, 'got_voucher' => 2], ['shirt_size' => 'XXL'], ['language' => 'lo_RM']);
         $this->addUser(
-            ['arrived' => 1, 'got_voucher' => 9, 'force_active' => true],
+            ['arrived' => 1, 'got_voucher' => 9, 'force_active' => true, 'user_info' => 'Info'],
             [],
             ['theme' => 1],
             ['drive_car' => true, 'drive_12t' => true]

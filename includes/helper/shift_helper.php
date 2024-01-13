@@ -5,11 +5,13 @@ namespace Engelsystem\Events\Listener;
 use Carbon\Carbon;
 use Engelsystem\Helpers\Shifts;
 use Engelsystem\Mail\EngelsystemMailer;
-use Engelsystem\Models\Room;
+use Engelsystem\Models\Location;
+use Engelsystem\Models\Shifts\Shift as ShiftModel;
+use Engelsystem\Models\Shifts\ShiftEntry;
 use Engelsystem\Models\User\User;
 use Engelsystem\Models\Worklog;
+use Illuminate\Database\Eloquent\Collection;
 use Psr\Log\LoggerInterface;
-use Symfony\Component\Mailer\Exception\TransportException;
 
 class Shift
 {
@@ -26,7 +28,7 @@ class Shift
         string $name,
         string $title,
         string $type,
-        Room $room,
+        Location $location,
         bool $freeloaded
     ): void {
         if ($freeloaded || $start > Carbon::now()) {
@@ -45,9 +47,9 @@ class Shift
             $name,
             $title,
             $type,
-            $room->name,
-            $start->format(__('Y-m-d H:i')),
-            $end->format(__('Y-m-d H:i'))
+            $location->name,
+            $start->format(__('general.datetime')),
+            $end->format(__('general.datetime'))
         );
         $workLog->save();
 
@@ -64,33 +66,69 @@ class Shift
         string $name,
         string $title,
         string $type,
-        Room $room,
+        Location $location,
         bool $freeloaded
     ): void {
         if (!$user->settings->email_shiftinfo) {
             return;
         }
 
-        $subject = 'notification.shift.deleted';
-        try {
+        $this->mailer->sendViewTranslated(
+            $user,
+            'notification.shift.deleted',
+            'emails/worklog-from-shift',
+            [
+                'name'       => $name,
+                'title'      => $title,
+                'start'      => $start,
+                'end'        => $end,
+                'location'   => $location,
+                'freeloaded' => $freeloaded,
+                'username'   => $user->displayName,
+            ]
+        );
+    }
+
+    public function updatedShiftSendEmail(
+        ShiftModel $shift,
+        ShiftModel $oldShift
+    ): void {
+        // Only send e-mail on relevant changes
+        if (
+            $oldShift->shift_type_id == $shift->shift_type_id
+            && $oldShift->title == $shift->title
+            && $oldShift->start == $shift->start
+            && $oldShift->end == $shift->end
+            && $oldShift->location_id == $shift->location_id
+        ) {
+            return;
+        }
+
+        $shift->load(['shiftType', 'location']);
+        $oldShift->load(['shiftType', 'location']);
+        /** @var ShiftEntry[]|Collection $shiftEntries */
+        $shiftEntries = $shift->shiftEntries()
+            ->with(['angelType', 'user.settings'])
+            ->get();
+
+        foreach ($shiftEntries as $shiftEntry) {
+            $user = $shiftEntry->user;
+            $angelType = $shiftEntry->angelType;
+
+            if (!$user->settings->email_shiftinfo || $shift->end < Carbon::now()) {
+                continue;
+            }
+
             $this->mailer->sendViewTranslated(
                 $user,
-                $subject,
-                'emails/worklog-from-shift',
+                'notification.shift.updated',
+                'emails/updated-shift',
                 [
-                    'name'       => $name,
-                    'title'      => $title,
-                    'start'      => $start,
-                    'end'        => $end,
-                    'room'       => $room,
-                    'freeloaded' => $freeloaded,
-                    'username'   => $user->displayName,
+                    'shift' => $shift,
+                    'oldShift' => $oldShift,
+                    'angelType' => $angelType,
+                    'username' => $user->displayName,
                 ]
-            );
-        } catch (TransportException $e) {
-            $this->log->error(
-                'Unable to send email "{title}" to user {user} with {exception}',
-                ['title' => $subject, 'user' => $user->name, 'exception' => $e]
             );
         }
     }

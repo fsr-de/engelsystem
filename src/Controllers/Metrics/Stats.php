@@ -6,6 +6,7 @@ namespace Engelsystem\Controllers\Metrics;
 
 use Carbon\Carbon;
 use Engelsystem\Database\Database;
+use Engelsystem\Models\AngelType;
 use Engelsystem\Models\EventConfig;
 use Engelsystem\Models\Faq;
 use Engelsystem\Models\LogEntry;
@@ -14,8 +15,9 @@ use Engelsystem\Models\News;
 use Engelsystem\Models\NewsComment;
 use Engelsystem\Models\OAuth;
 use Engelsystem\Models\Question;
-use Engelsystem\Models\Room;
+use Engelsystem\Models\Location;
 use Engelsystem\Models\Shifts\Shift;
+use Engelsystem\Models\Shifts\ShiftType;
 use Engelsystem\Models\User\License;
 use Engelsystem\Models\User\PasswordReset;
 use Engelsystem\Models\User\PersonalData;
@@ -36,13 +38,13 @@ class Stats
     }
 
     /**
-     * The number of not arrived users
+     * The number of users that arrived/not arrived and/or did some work
      *
      * @param bool|null $working
      */
-    public function arrivedUsers(bool $working = null): int
+    public function usersState(bool $working = null, bool $arrived = true): int
     {
-        $query = State::whereArrived(true);
+        $query = State::whereArrived($arrived);
 
         if (!is_null($working)) {
             $query
@@ -69,12 +71,12 @@ class Stats
         return $query->count('users_state.user_id');
     }
 
-    /**
-     * The number of not arrived users
-     */
-    public function newUsers(): int
+    public function usersInfo(): int
     {
-        return State::whereArrived(false)->count();
+        return State::query()
+            ->whereNotNull('user_info')
+            ->whereNot('user_info', '')
+            ->count();
     }
 
     public function forceActiveUsers(): int
@@ -174,23 +176,22 @@ class Stats
             ->get();
     }
 
-    /**
-     * @param string|null $vehicle
-     */
-    public function licenses(string $vehicle): int
+    public function licenses(string $license): int
     {
         $mapping = [
-            'has_car'  => 'has_car',
-            'forklift' => 'drive_forklift',
-            'car'      => 'drive_car',
-            '3.5t'     => 'drive_3_5t',
-            '7.5t'     => 'drive_7_5t',
-            '12t'      => 'drive_12t',
+            'has_car'   => 'has_car',
+            'forklift'  => 'drive_forklift',
+            'car'       => 'drive_car',
+            '3.5t'      => 'drive_3_5t',
+            '7.5t'      => 'drive_7_5t',
+            '12t'       => 'drive_12t',
+            'ifsg_light'      => 'ifsg_certificate_light',
+            'ifsg' => 'ifsg_certificate',
         ];
 
         $query = (new License())
             ->getQuery()
-            ->where($mapping[$vehicle], true);
+            ->where($mapping[$license], true);
 
         return $query->count();
     }
@@ -292,9 +293,21 @@ class Stats
         );
     }
 
-    public function rooms(): int
+    public function locations(): int
     {
-        return Room::query()
+        return Location::query()
+            ->count();
+    }
+
+    public function shifttypes(): int
+    {
+        return ShiftType::query()
+            ->count();
+    }
+
+    public function angeltypes(): int
+    {
+        return AngelType::query()
             ->count();
     }
 

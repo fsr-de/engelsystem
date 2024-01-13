@@ -52,10 +52,13 @@ class OAuthController extends BaseController
         }
 
         if (!$request->has('code')) {
-            $authorizationUrl = $provider->getAuthorizationUrl([
-                'scope' => 'openid email profile'
-            ]);
-
+            $authorizationUrl = $provider->getAuthorizationUrl(
+                [
+                    // League oauth separates scopes by comma, which is wrong, so we do it
+                    // here properly by spaces. See https://www.rfc-editor.org/rfc/rfc6749#section-3.3
+                    'scope' => join(' ', $config['scope'] ?? []),
+                ]
+            );
             $this->session->set('oauth2_state', $provider->getState());
 
             return $this->redirect->to($authorizationUrl);
@@ -98,7 +101,7 @@ class OAuthController extends BaseController
             ->where('provider', $providerName)
             ->where('identifier', $resourceId)
             ->get()
-            // Explicit case sensitive comparison using PHP as some DBMS collations are case sensitive and some arent
+            // Explicit case-sensitive comparison using PHP as some DBMS collations are case-sensitive and some aren't
             ->where('identifier', '===', (string) $resourceId)
             ->first();
 
@@ -147,7 +150,7 @@ class OAuthController extends BaseController
         if (!$oauth) {
             return $this->redirectRegister(
                 $providerName,
-                $resourceId,
+                (string) $resourceId,
                 $accessToken,
                 $config,
                 $userdata
@@ -304,15 +307,11 @@ class OAuthController extends BaseController
             throw new HttpNotFound('oauth.not-found');
         }
 
-        $this->session->set(
-            'form_data',
-            [
-                'name'       => $userdata->get($config['username']),
-                'email'      => $userdata->get($config['email']),
-                'first_name' => $userdata->get($config['first_name']),
-                'last_name'  => $userdata->get($config['last_name']),
-            ],
-        );
+        $this->session->set('form-data-username', $userdata->get($config['username']));
+        $this->session->set('form-data-email', $userdata->get($config['email']));
+        $this->session->set('form-data-first_name', $userdata->get($config['first_name']));
+        $this->session->set('form-data-last_name', $userdata->get($config['last_name']));
+
         $this->session->set('oauth2_groups', $userdata->get($config['groups'], []));
         $this->session->set('oauth2_connect_provider', $providerName);
         $this->session->set('oauth2_user_id', $providerUserIdentifier);

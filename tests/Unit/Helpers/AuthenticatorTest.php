@@ -12,6 +12,7 @@ use Engelsystem\Models\User\User;
 use Engelsystem\Test\Unit\HasDatabase;
 use Engelsystem\Test\Unit\Helpers\Stub\UserModelImplementation;
 use Engelsystem\Test\Unit\ServiceProviderTest;
+use Illuminate\Support\Str;
 use PHPUnit\Framework\MockObject\MockObject;
 use Psr\Http\Message\ServerRequestInterface;
 use Symfony\Component\HttpFoundation\Session\Session;
@@ -20,6 +21,14 @@ use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 class AuthenticatorTest extends ServiceProviderTest
 {
     use HasDatabase;
+
+    protected static ?string $passwordHashTesting = null;
+
+    public static function setUpBeforeClass(): void
+    {
+        parent::setUpBeforeClass();
+        self::$passwordHashTesting = password_hash('testing', PASSWORD_ARGON2I, ['memory_cost' => 100]);
+    }
 
     /**
      * @covers \Engelsystem\Helpers\Authenticator::user
@@ -81,7 +90,7 @@ class AuthenticatorTest extends ServiceProviderTest
         $session = new Session(new MockArraySessionStorage());
 
         $request = $request->withHeader('Authorization', 'Bearer F00Bar');
-        $request = $request->withAttribute('route-api', true);
+        $request = $request->withAttribute('route-api-accessible', true);
         $this->app->instance('request', $request);
         User::factory()->create(['api_key' => 'F00Bar']);
 
@@ -151,7 +160,7 @@ class AuthenticatorTest extends ServiceProviderTest
         $this->initDatabase();
 
         $request = new Request();
-        $request = $request->withAttribute('route-api', true);
+        $request = $request->withAttribute('route-api-accessible', true);
         $session = new Session(new MockArraySessionStorage());
         $this->app->instance('request', $request);
 
@@ -176,18 +185,57 @@ class AuthenticatorTest extends ServiceProviderTest
     }
 
     /**
+     * @covers \Engelsystem\Helpers\Authenticator::userByHeaders
+     */
+    public function testUserByHeadersBearerTrimApiKey(): void
+    {
+        $this->initDatabase();
+
+        $request = new Request();
+        $request = $request->withAttribute('route-api-accessible', true);
+        $session = new Session(new MockArraySessionStorage());
+        $this->app->instance('request', $request);
+
+        $request = $request->withHeader('authorization', 'bearer  F00Bar ');
+        $auth = new Authenticator($request, $session, new User());
+        User::factory()->create(['api_key' => 'F00Bar']);
+        $user = $auth->user();
+        $this->assertInstanceOf(User::class, $user);
+        $this->assertEquals('F00Bar', $user->api_key);
+    }
+
+    /**
+     * @covers \Engelsystem\Helpers\Authenticator::resetApiKey
+     */
+    public function testResetApiKey(): void
+    {
+        $this->initDatabase();
+
+        $user = User::factory()->create();
+        $oldKey = $user->api_key;
+
+        $auth = new Authenticator(new Request(), new Session(new MockArraySessionStorage()), new User());
+        $auth->resetApiKey($user);
+
+        $updatedUser = User::all()->last();
+        $newApiKey = $updatedUser->api_key;
+
+        $this->assertNotEquals($oldKey, $newApiKey);
+        $this->assertTrue(Str::isAscii($newApiKey));
+        $this->assertEquals(64, Str::length($newApiKey));
+    }
+
+    /**
      * @covers \Engelsystem\Helpers\Authenticator::can
+     * @covers \Engelsystem\Helpers\Authenticator::isApiRequest
      */
     public function testCan(): void
     {
         $this->initDatabase();
 
-        /** @var ServerRequestInterface|MockObject $request */
-        $request = $this->getMockForAbstractClass(ServerRequestInterface::class);
-        /** @var Session|MockObject $session */
-        $session = $this->createMock(Session::class);
-        /** @var UserModelImplementation|MockObject $userRepository */
-        $userRepository = new UserModelImplementation();
+        $request = new Request();
+        $this->app->instance('request', $request);
+        $session = new Session(new MockArraySessionStorage());
         /** @var User $user */
         $user = User::factory()->create();
         /** @var Group $group */
@@ -198,33 +246,33 @@ class AuthenticatorTest extends ServiceProviderTest
         $user->groups()->attach($group);
         $group->privileges()->attach($privilege);
 
-        $session->expects($this->once())
-            ->method('get')
-            ->with('user_id')
-            ->willReturn(42);
-        $session->expects($this->once())
-            ->method('remove')
-            ->with('user_id');
-
-        /** @var Authenticator|MockObject $auth */
-        $auth = $this->getMockBuilder(Authenticator::class)
-            ->setConstructorArgs([$request, $session, $userRepository])
-            ->onlyMethods(['user'])
-            ->getMock();
-        $auth->expects($this->exactly(2))
-            ->method('user')
-            ->willReturnOnConsecutiveCalls(null, $user);
-
-        Group::factory()->create(['id' => $auth->getGuestRole()]);
-
-        // No user, no permissions
-        $this->assertFalse($auth->can('foo'));
-
+        $auth = new Authenticator($request, $session, new User());
+        $session->set('user_id', $user->id);
         // User exists, has permissions
         $this->assertTrue($auth->can('bar'));
 
         // Permissions cached
         $this->assertTrue($auth->can('bar'));
+    }
+
+    /**
+     * @covers \Engelsystem\Helpers\Authenticator::can
+     */
+    public function testCanUnauthorized(): void
+    {
+        $this->initDatabase();
+
+        $request = new Request();
+        $this->app->instance('request', $request);
+        $session = new Session(new MockArraySessionStorage());
+
+        $auth = new Authenticator($request, $session, new User());
+        $session->set('user_id', 42);
+
+        // No user, no permissions
+        $this->assertFalse($auth->can('foo'));
+        // Old/invalid user id got removed
+        $this->assertNull($session->get('user_id'));
     }
 
     /**
@@ -242,7 +290,7 @@ class AuthenticatorTest extends ServiceProviderTest
 
         User::factory([
             'name'     => 'lorem',
-            'password' => password_hash('testing', PASSWORD_DEFAULT),
+            'password' => self::$passwordHashTesting,
             'email'    => 'lorem@foo.bar',
         ])->create();
         User::factory([
@@ -263,7 +311,8 @@ class AuthenticatorTest extends ServiceProviderTest
     public function testVerifyPassword(): void
     {
         $this->initDatabase();
-        $password = password_hash('testing', PASSWORD_ARGON2I);
+        $password = self::$passwordHashTesting;
+
         /** @var User $user */
         $user = User::factory([
             'name'     => 'lorem',
@@ -299,13 +348,13 @@ class AuthenticatorTest extends ServiceProviderTest
         $user->save();
 
         $auth = $this->getAuthenticator();
-        $auth->setPasswordAlgorithm(PASSWORD_ARGON2I);
+        $auth->setPasswordAlgorithm(PASSWORD_BCRYPT);
 
         $auth->setPassword($user, 'FooBar');
         $this->assertTrue($user->isClean());
 
         $this->assertTrue(password_verify('FooBar', $user->password));
-        $this->assertFalse(password_needs_rehash($user->password, PASSWORD_ARGON2I));
+        $this->assertFalse(password_needs_rehash($user->password, PASSWORD_BCRYPT));
     }
 
     /**

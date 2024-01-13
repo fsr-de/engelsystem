@@ -40,7 +40,7 @@ function admin_free()
     /** @var User[] $users */
     $users = [];
     if ($request->has('submit')) {
-        $query = User::with('personalData')
+        $query = User::with(['personalData', 'contact', 'state'])
             ->select('users.*')
             ->leftJoin('shift_entries', 'users.id', 'shift_entries.user_id')
             ->leftJoin('users_state', 'users.id', 'users_state.user_id')
@@ -97,16 +97,18 @@ function admin_free()
 
         $email = $usr->contact->email ?: $usr->email;
         $free_users_table[] = [
-            'name'        => User_Nick_render($usr) . User_Pronoun_render($usr),
+            'name'        => User_Nick_render($usr)
+                . User_Pronoun_render($usr)
+                . user_info_icon($usr),
             'shift_state' => User_shift_state_render($usr),
             'last_shift'  => User_last_shift_render($usr),
-            'dect'        => sprintf('<a href="tel:%s">%1$s</a>', $usr->contact->dect),
+            'dect'        => sprintf('<a href="tel:%s">%1$s</a>', htmlspecialchars((string) $usr->contact->dect)),
             'email'       => $usr->settings->email_human
-                ? sprintf('<a href="mailto:%s">%1$s</a>', $email)
+                ? sprintf('<a href="mailto:%s">%1$s</a>', htmlspecialchars((string) $email))
                 : icon('eye-slash'),
             'actions'     =>
                 auth()->can('admin_user')
-                    ? button(page_link_to('admin_user', ['id' => $usr->id]), icon('pencil') . __('edit'), 'btn-sm')
+                    ? button(url('/admin-user', ['id' => $usr->id]), icon('pencil'), 'btn-sm', '', __('form.edit'))
                     : '',
         ];
     }
@@ -115,19 +117,19 @@ function admin_free()
             div('row', [
                 div('col-md-12 form-inline', [
                     div('row', [
-                        form_text('search', __('Search'), $search, null, null, null, 'col'),
+                        form_text('search', __('form.search'), $search, null, null, null, 'col'),
                         form_select('angeltype', __('Angeltype'), $angel_types, $angelType, '', 'col'),
-                        form_submit('submit', __('Search')),
+                        form_submit('submit', icon('search') . __('form.search')),
                     ]),
                 ]),
             ]),
         ]),
         table([
-            'name'        => __('Name'),
-            'shift_state' => __('Next shift'),
+            'name'        => __('general.name'),
+            'shift_state' => __('shift.next'),
             'last_shift'  => __('Last shift'),
-            'dect'        => __('DECT'),
-            'email'       => __('E-Mail'),
+            'dect'        => __('general.dect'),
+            'email'       => __('general.email'),
             'actions'     => '',
         ], $free_users_table),
     ]);

@@ -10,8 +10,13 @@ use Engelsystem\Config\GoodieType;
 use Engelsystem\Controllers\NotificationType;
 use Engelsystem\Controllers\SettingsController;
 use Engelsystem\Http\Exceptions\HttpNotFound;
+use Engelsystem\Http\Redirector;
 use Engelsystem\Http\Response;
+use Engelsystem\Models\AngelType;
+use Engelsystem\Models\Session as SessionModel;
+use Engelsystem\Models\User\License;
 use Engelsystem\Models\User\Settings;
+use Illuminate\Support\Str;
 use PHPUnit\Framework\MockObject\MockObject;
 use Symfony\Component\HttpFoundation\Session\Session;
 use Engelsystem\Helpers\Authenticator;
@@ -30,6 +35,10 @@ class SettingsControllerTest extends ControllerTest
     protected User $user;
 
     protected SettingsController $controller;
+
+    protected SessionModel $currentSession;
+    protected SessionModel $secondSession;
+    protected SessionModel $otherSession;
 
     protected function setUpProfileTest(): array
     {
@@ -81,7 +90,7 @@ class SettingsControllerTest extends ControllerTest
      */
     public function testProfile(): void
     {
-        $this->setExpects($this->auth, 'user', null, $this->user, $this->once());
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
         /** @var Response|MockObject $response */
         $this->response->expects($this->once())
             ->method('withView')
@@ -99,6 +108,7 @@ class SettingsControllerTest extends ControllerTest
     /**
      * @covers \Engelsystem\Controllers\SettingsController::saveProfile
      * @covers \Engelsystem\Controllers\SettingsController::getSaveProfileRules
+     * @covers \Engelsystem\Controllers\SettingsController::isRequired
      */
     public function testSaveProfile(): void
     {
@@ -277,6 +287,13 @@ class SettingsControllerTest extends ControllerTest
         $session = $this->app->get('session');
         $messages = $session->get('messages.' . NotificationType::MESSAGE->value);
         $this->assertEquals('settings.password.success', $messages[0]);
+
+        $this->assertCount(
+            1,
+            SessionModel::whereUserId($this->user->id)->get(),
+            'All other user sessions should be deleted after setting a new password'
+        );
+        $this->assertCount(2, SessionModel::all()); // Current session and another one should be still there
     }
 
     /**
@@ -375,8 +392,6 @@ class SettingsControllerTest extends ControllerTest
     /**
      * @covers \Engelsystem\Controllers\SettingsController::savePassword
      * @dataProvider savePasswordValidationProvider
-     * @param string $new_password
-     * @param string $new_password2
      */
     public function testSavePasswordValidation(
         ?string $password,
@@ -404,7 +419,7 @@ class SettingsControllerTest extends ControllerTest
      */
     public function testThemeUnderNormalConditionReturnsCorrectViewAndData(): void
     {
-        $this->setExpects($this->auth, 'user', null, $this->user, $this->once());
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
 
         /** @var Response|MockObject $response */
         $this->response->expects($this->once())
@@ -475,7 +490,7 @@ class SettingsControllerTest extends ControllerTest
      */
     public function testLanguageUnderNormalConditionReturnsCorrectViewAndData(): void
     {
-        $this->setExpects($this->auth, 'user', null, $this->user, $this->once());
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
 
         /** @var Response|MockObject $response */
         $this->response->expects($this->once())
@@ -576,6 +591,375 @@ class SettingsControllerTest extends ControllerTest
     }
 
     /**
+     * @covers \Engelsystem\Controllers\SettingsController::sessions
+     */
+    public function testSessions(): void
+    {
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
+
+        $this->response->expects($this->once())
+            ->method('withView')
+            ->willReturnCallback(function ($view, $data) {
+                $this->assertEquals('pages/settings/sessions', $view);
+
+                $this->assertArrayHasKey('sessions', $data);
+                $this->assertCount(3, $data['sessions']);
+
+                $this->assertArrayHasKey('current_session', $data);
+                $this->assertEquals($this->currentSession->id, $data['current_session']);
+
+                return $this->response;
+            });
+
+        $this->controller->sessions();
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::sessionsDelete
+     */
+    public function testSessionsDelete(): void
+    {
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->once());
+        $this->setExpects($this->response, 'redirectTo', ['http://localhost/settings/sessions'], $this->response);
+
+        // Delete old user session
+        $this->request = $this->request->withParsedBody(['id' => Str::substr($this->secondSession->id, 0, 15)]);
+        $this->controller->sessionsDelete($this->request);
+
+        $this->assertHasNotification('settings.sessions.delete_success');
+        $this->assertCount(3, SessionModel::all());
+        $this->assertNull(SessionModel::find($this->secondSession->id));
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::sessionsDelete
+     */
+    public function testSessionsDeleteActiveSession(): void
+    {
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->once());
+        $this->setExpects($this->response, 'redirectTo', null, $this->response);
+
+        // Delete active user session
+        $this->request = $this->request->withParsedBody(['id' => Str::substr($this->currentSession->id, 0, 15)]);
+        $this->controller->sessionsDelete($this->request);
+
+        $this->assertCount(4, SessionModel::all()); // None got deleted
+        $this->assertNotNull(SessionModel::find($this->currentSession->id));
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::sessionsDelete
+     */
+    public function testSessionsDeleteOtherUsersSession(): void
+    {
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->once());
+        $this->setExpects($this->response, 'redirectTo', null, $this->response);
+
+        // Delete another users session
+        $this->request = $this->request->withParsedBody(['id' => Str::substr($this->otherSession->id, 0, 15)]);
+        $this->controller->sessionsDelete($this->request);
+
+        $this->assertCount(4, SessionModel::all()); // None got deleted
+        $this->assertNotNull(SessionModel::find($this->otherSession->id));
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::sessionsDelete
+     */
+    public function testSessionsDeleteAllSessions(): void
+    {
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->once());
+        $this->setExpects($this->response, 'redirectTo', null, $this->response);
+
+        // Delete all other user sessions
+        $this->request = $this->request->withParsedBody(['id' => 'all']);
+        $this->controller->sessionsDelete($this->request);
+
+        $this->assertCount(2, SessionModel::all()); // Two got deleted
+        $this->assertNotNull(SessionModel::find($this->currentSession->id));
+        $this->assertNull(SessionModel::find($this->secondSession->id));
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::__construct
+     * @covers \Engelsystem\Controllers\SettingsController::certificate
+     */
+    public function testCertificateIfsg(): void
+    {
+        config(['ifsg_enabled' => true, 'ifsg_light_enabled' => true]);
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
+
+        $this->response->expects($this->once())
+            ->method('withView')
+            ->willReturnCallback(function ($view, $data) {
+                $this->assertEquals('pages/settings/certificates', $view);
+                $this->assertArrayHasKey('certificates', $data);
+                $this->assertEquals($this->user->license, $data['certificates']);
+                return $this->response;
+            });
+
+        $this->controller->certificate();
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::certificate
+     */
+    public function testCertificateIfsgNotConfigured(): void
+    {
+        config(['ifsg_enabled' => false]);
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
+
+        $this->expectException(HttpNotFound::class);
+        $this->controller->certificate();
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::certificate
+     */
+    public function testCertificateDrivingLicense(): void
+    {
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
+
+        $angelType = AngelType::factory()->create(['requires_driver_license' => true]);
+        $this->user->userAngelTypes()->attach($angelType);
+
+        $this->response->expects($this->once())
+            ->method('withView')
+            ->willReturnCallback(function ($view, $data) {
+                $this->assertEquals('pages/settings/certificates', $view);
+                $this->assertArrayHasKey('certificates', $data);
+                $this->assertEquals($this->user->license, $data['certificates']);
+                return $this->response;
+            });
+
+        $this->controller->certificate();
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::saveIfsgCertificate
+     */
+    public function testSaveIfsgCertificateNotConfigured(): void
+    {
+        config(['ifsg_enabled' => false]);
+
+        $this->expectException(HttpNotFound::class);
+        $this->controller->saveIfsgCertificate($this->request);
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::saveIfsgCertificate
+     */
+    public function testSaveIfsgCertificateLight(): void
+    {
+        config(['ifsg_enabled' => true, 'ifsg_light_enabled' => true]);
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->once());
+
+        $body = [
+            'ifsg_certificate_light' => true,
+        ];
+        $this->request = $this->request->withParsedBody($body);
+
+        $this->response->expects($this->once())
+            ->method('redirectTo')
+            ->with('http://localhost/settings/certificates')
+            ->willReturn($this->response);
+
+        $this->controller->saveIfsgCertificate($this->request);
+
+        $this->assertEquals(true, $this->user->license->ifsg_certificate_light);
+        $this->assertEquals(false, $this->user->license->ifsg_certificate);
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::saveIfsgCertificate
+     */
+    public function testSaveIfsgCertificateLightWhileDisabled(): void
+    {
+        config(['ifsg_enabled' => true, 'ifsg_light_enabled' => false]);
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->once());
+        $this->user->license->ifsg_certificate_light = false;
+        $this->user->license->save();
+
+        $body = [
+            'ifsg_certificate_light' => true,
+        ];
+        $this->request = $this->request->withParsedBody($body);
+
+        $this->response->expects($this->once())
+            ->method('redirectTo')
+            ->with('http://localhost/settings/certificates')
+            ->willReturn($this->response);
+
+        $this->controller->saveIfsgCertificate($this->request);
+
+        $this->assertEquals(false, $this->user->license->ifsg_certificate_light);
+        $this->assertEquals(false, $this->user->license->ifsg_certificate);
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::saveIfsgCertificate
+     */
+    public function testSaveIfsgCertificate(): void
+    {
+        config(['ifsg_enabled' => true]);
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->once());
+
+        $body = [
+            'ifsg_certificate'       => true,
+        ];
+        $this->request = $this->request->withParsedBody($body);
+
+        $this->response->expects($this->once())
+            ->method('redirectTo')
+            ->with('http://localhost/settings/certificates')
+            ->willReturn($this->response);
+
+        $this->controller->saveIfsgCertificate($this->request);
+
+        $this->assertEquals(false, $this->user->license->ifsg_certificate_light);
+        $this->assertEquals(true, $this->user->license->ifsg_certificate);
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::saveIfsgCertificate
+     */
+    public function testSaveIfsgCertificateBoth(): void
+    {
+        config(['ifsg_enabled' => true]);
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->once());
+
+        $body = [
+            'ifsg_certificate_light' => true,
+            'ifsg_certificate'       => true,
+        ];
+        $this->request = $this->request->withParsedBody($body);
+
+        $this->response->expects($this->once())
+            ->method('redirectTo')
+            ->with('http://localhost/settings/certificates')
+            ->willReturn($this->response);
+
+        $this->controller->saveIfsgCertificate($this->request);
+
+        $this->assertEquals(false, $this->user->license->ifsg_certificate_light);
+        $this->assertEquals(true, $this->user->license->ifsg_certificate);
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::saveDrivingLicense
+     * @covers \Engelsystem\Controllers\SettingsController::checkDrivingLicense
+     */
+    public function testSaveDrivingLicense(): void
+    {
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
+
+        $angelType = AngelType::factory()->create(['requires_driver_license' => true]);
+        $this->user->userAngelTypes()->attach($angelType);
+
+        $body = [
+            'has_car' => true,
+            'drive_forklift' => true,
+            'drive_12t' => true,
+        ];
+        $this->request = $this->request->withParsedBody($body);
+
+        $this->response->expects($this->once())
+            ->method('redirectTo')
+            ->with('http://localhost/settings/certificates')
+            ->willReturn($this->response);
+
+        $this->controller->saveDrivingLicense($this->request);
+
+        $this->assertTrue($this->user->license->has_car);
+        $this->assertTrue($this->user->license->drive_forklift);
+        $this->assertTrue($this->user->license->drive_12t);
+        $this->assertFalse($this->user->license->drive_car);
+        $this->assertFalse($this->user->license->drive_3_5t);
+        $this->assertFalse($this->user->license->drive_7_5t);
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::saveDrivingLicense
+     */
+    public function testSaveDrivingLicenseNotAvailable(): void
+    {
+        $this->expectException(HttpNotFound::class);
+        $this->controller->saveDrivingLicense($this->request);
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::api
+     * @covers \Engelsystem\Controllers\SettingsController::settingsMenu
+     */
+    public function testApi(): void
+    {
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
+
+        /** @var Response|MockObject $response */
+        $this->response->expects($this->once())
+            ->method('withView')
+            ->willReturnCallback(function ($view, $data) {
+                $this->assertEquals('pages/settings/api', $view);
+                $this->assertArrayHasKey('settings_menu', $data);
+                return $this->response;
+            });
+
+        $this->controller = $this->app->make(SettingsController::class);
+        $this->controller->api();
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::apiKeyReset
+     */
+    public function testApiKeyReset(): void
+    {
+        $redirector = $this->createMock(Redirector::class);
+        $this->app->instance(Redirector::class, $redirector);
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
+        $this->setExpects($this->auth, 'resetApiKey', [$this->user], null, $this->atLeastOnce());
+        $this->setExpects($redirector, 'back', null, $this->response);
+
+        $this->controller = $this->app->make(SettingsController::class);
+        $this->controller->apiKeyReset();
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::settingsMenu
+     */
+    public function testSettingsMenuProfile(): void
+    {
+        $menu = $this->controller->settingsMenu();
+        $this->assertArrayHasKey('http://localhost/settings/profile', $menu);
+        $this->assertEquals('settings.profile', $menu['http://localhost/settings/profile']);
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::settingsMenu
+     */
+    public function testSettingsMenuPassword(): void
+    {
+        $menu = $this->controller->settingsMenu();
+        $this->assertArrayHasKey('http://localhost/settings/password', $menu);
+        $this->assertEquals(
+            ['title' => 'settings.password', 'icon' => 'key-fill'],
+            $menu['http://localhost/settings/password']
+        );
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::settingsMenu
+     */
+    public function testSettingsMenuLanguage(): void
+    {
+        $menu = $this->controller->settingsMenu();
+        $this->assertArrayHasKey('http://localhost/settings/language', $menu);
+        $this->assertEquals(
+            ['title' => 'settings.language', 'icon' => 'translate'],
+            $menu['http://localhost/settings/language']
+        );
+    }
+
+    /**
      * @covers \Engelsystem\Controllers\SettingsController::settingsMenu
      * @covers \Engelsystem\Controllers\SettingsController::checkOauthHidden
      */
@@ -585,22 +969,15 @@ class SettingsControllerTest extends ControllerTest
         $providersHidden = ['foo' => ['lorem' => 'ipsum', 'hidden' => true]];
         config(['oauth' => $providers]);
 
-        $this->assertEquals([
-            'http://localhost/settings/profile' => 'settings.profile',
-            'http://localhost/settings/password' => 'settings.password',
-            'http://localhost/settings/language' => 'settings.language',
-            'http://localhost/settings/theme' => 'settings.theme',
-            'http://localhost/settings/oauth' => ['title' => 'settings.oauth', 'hidden' => false],
-        ], $this->controller->settingsMenu());
+        $menu = $this->controller->settingsMenu();
+        $this->assertArrayHasKey('http://localhost/settings/oauth', $menu);
+        $this->assertEquals(['title' => 'settings.oauth', 'hidden' => false], $menu['http://localhost/settings/oauth']);
 
         config(['oauth' => $providersHidden]);
-        $this->assertEquals([
-            'http://localhost/settings/profile' => 'settings.profile',
-            'http://localhost/settings/password' => 'settings.password',
-            'http://localhost/settings/language' => 'settings.language',
-            'http://localhost/settings/theme' => 'settings.theme',
-            'http://localhost/settings/oauth' => ['title' => 'settings.oauth', 'hidden' => true],
-        ], $this->controller->settingsMenu());
+
+        $menu = $this->controller->settingsMenu();
+        $this->assertArrayHasKey('http://localhost/settings/oauth', $menu);
+        $this->assertEquals(['title' => 'settings.oauth', 'hidden' => true], $menu['http://localhost/settings/oauth']);
     }
 
     /**
@@ -610,12 +987,55 @@ class SettingsControllerTest extends ControllerTest
     {
         config(['oauth' => []]);
 
-        $this->assertEquals([
-            'http://localhost/settings/profile' => 'settings.profile',
-            'http://localhost/settings/password' => 'settings.password',
-            'http://localhost/settings/language' => 'settings.language',
-            'http://localhost/settings/theme' => 'settings.theme',
-        ], $this->controller->settingsMenu());
+        $menu = $this->controller->settingsMenu();
+        $this->assertArrayNotHasKey('http://localhost/settings/oauth', $menu);
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::settingsMenu
+     * @covers \Engelsystem\Controllers\SettingsController::checkOauthHidden
+     */
+    public function testSettingsMenuWithIfsg(): void
+    {
+        config(['ifsg_enabled' => true]);
+
+        $menu = $this->controller->settingsMenu();
+        $this->assertArrayHasKey('http://localhost/settings/certificates', $menu);
+        $this->assertEquals(
+            ['title' => 'settings.certificates', 'icon' => 'card-checklist'],
+            $menu['http://localhost/settings/certificates']
+        );
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::settingsMenu
+     */
+    public function testSettingsMenuWithoutIfsg(): void
+    {
+        config(['ifsg_enabled' => false]);
+
+        $menu = $this->controller->settingsMenu();
+        $this->assertArrayNotHasKey('http://localhost/settings/certificates', $menu);
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::settingsMenu
+     */
+    public function testSettingsMenuApi(): void
+    {
+        $this->setExpects($this->auth, 'can', ['api'], true, $this->atLeastOnce());
+
+        $menu = $this->controller->settingsMenu();
+        $this->assertArrayHasKey('http://localhost/settings/profile', $menu);
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::settingsMenu
+     */
+    public function testSettingsMenuApiNotAvailable(): void
+    {
+        $menu = $this->controller->settingsMenu();
+        $this->assertArrayNotHasKey('http://localhost/settings/api', $menu);
     }
 
     /**
@@ -634,12 +1054,21 @@ class SettingsControllerTest extends ControllerTest
             'de_DE' => 'Deutsch',
         ];
         $tshirt_sizes = ['S' => 'Small'];
+        $requiredFields = [
+            'pronoun'     => false,
+            'firstname'   => false,
+            'lastname'    => false,
+            'tshirt_size' => true,
+            'mobile'      => false,
+            'dect'        => false,
+        ];
         $this->config = new Config([
             'min_password_length' => 6,
             'themes' => $themes,
             'locales' => $languages,
             'tshirt_sizes' => $tshirt_sizes,
             'goodie_type' => GoodieType::Goodie->value,
+            'required_user_fields' => $requiredFields,
         ]);
         $this->app->instance('config', $this->config);
         $this->app->instance(Config::class, $this->config);
@@ -656,7 +1085,17 @@ class SettingsControllerTest extends ControllerTest
                 'email_goody' => false,
                 'mobile_show' => false,
             ]))
+            ->has(License::factory())
             ->create();
+
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->any());
+
+        // Create 4 sessions, 3 for the active user
+        $this->otherSession = SessionModel::factory()->create()->first(); // Other users sessions
+        $sessions = SessionModel::factory(3)->create(['user_id' => $this->user->id]);
+        $this->currentSession = $sessions->first();
+        $this->secondSession = $sessions->last();
+        $this->session->setId($this->currentSession->id);
 
         $this->controller = $this->app->make(SettingsController::class);
         $this->controller->setValidator(new Validator());

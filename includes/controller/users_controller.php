@@ -7,6 +7,7 @@ use Engelsystem\Models\User\User;
 use Engelsystem\ShiftCalendarRenderer;
 use Engelsystem\ShiftsFilter;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 /**
@@ -20,7 +21,7 @@ function users_controller()
     $request = request();
 
     if (!$user) {
-        throw_redirect(page_link_to());
+        throw_redirect(url('/'));
     }
 
     $action = 'list';
@@ -55,7 +56,7 @@ function user_delete_controller()
     }
 
     if (!auth()->can('admin_user')) {
-        throw_redirect(page_link_to());
+        throw_redirect(url('/'));
     }
 
     // You cannot delete yourself
@@ -91,7 +92,7 @@ function user_delete_controller()
     }
 
     return [
-        sprintf(__('Delete %s'), $user_source->displayName),
+        sprintf(__('Delete %s'), htmlspecialchars($user_source->displayName)),
         User_delete_view($user_source),
     ];
 }
@@ -101,7 +102,7 @@ function user_delete_controller()
  */
 function users_link()
 {
-    return page_link_to('users');
+    return url('/users');
 }
 
 /**
@@ -110,7 +111,7 @@ function users_link()
  */
 function user_edit_link($userId)
 {
-    return page_link_to('admin_user', ['user_id' => $userId]);
+    return url('/admin-user', ['user_id' => $userId]);
 }
 
 /**
@@ -119,7 +120,7 @@ function user_edit_link($userId)
  */
 function user_delete_link($userId)
 {
-    return page_link_to('users', ['action' => 'delete', 'user_id' => $userId]);
+    return url('/users', ['action' => 'delete', 'user_id' => $userId]);
 }
 
 /**
@@ -128,7 +129,7 @@ function user_delete_link($userId)
  */
 function user_link($userId)
 {
-    return page_link_to('users', ['action' => 'view', 'user_id' => $userId]);
+    return url('/users', ['action' => 'view', 'user_id' => $userId]);
 }
 
 /**
@@ -149,7 +150,7 @@ function user_edit_vouchers_controller()
         (!auth()->can('admin_user') && !auth()->can('voucher.edit'))
         || !config('enable_voucher')
     ) {
-        throw_redirect(page_link_to());
+        throw_redirect(url('/'));
     }
 
     if ($request->hasPostData('submit')) {
@@ -182,7 +183,7 @@ function user_edit_vouchers_controller()
     }
 
     return [
-        sprintf(__('%s\'s vouchers'), $user_source->displayName),
+        sprintf(__('%s\'s vouchers'), htmlspecialchars($user_source->displayName)),
         User_edit_vouchers_view($user_source),
     ];
 }
@@ -200,7 +201,7 @@ function user_controller()
         $user_source = User::find($request->input('user_id'));
         if (!$user_source) {
             error(__('User not found.'));
-            throw_redirect(page_link_to('/'));
+            throw_redirect(url('/'));
         }
     }
 
@@ -234,7 +235,7 @@ function user_controller()
     }
 
     if (empty($user_source->api_key)) {
-        User_reset_api_key($user_source, false);
+        auth()->resetApiKey($user_source);
     }
 
     if ($user_source->state->force_active) {
@@ -243,8 +244,12 @@ function user_controller()
         $tshirt_score = sprintf('%.2f', User_tshirt_score($user_source->id)) . '&nbsp;h';
     }
 
+    $worklogs = $user_source->worklogs()
+        ->with(['user', 'creator'])
+        ->get();
+
     return [
-        $user_source->displayName,
+        htmlspecialchars($user_source->displayName),
         User_view(
             $user_source,
             auth()->can('admin_user'),
@@ -256,7 +261,7 @@ function user_controller()
             $tshirt_score,
             auth()->can('admin_active'),
             auth()->can('admin_user_worklog'),
-            UserWorkLogsForUser($user_source->id)
+            $worklogs
         ),
     ];
 }
@@ -271,7 +276,7 @@ function users_list_controller()
     $request = request();
 
     if (!auth()->can('admin_user')) {
-        throw_redirect(page_link_to());
+        throw_redirect(url('/'));
     }
 
     $order_by = 'name';
@@ -297,13 +302,15 @@ function users_list_controller()
     }
 
     /** @var User[]|Collection $users */
-    $users = User::with(['contact', 'personalData', 'state'])
+    $users = User::with(['contact', 'personalData', 'state', 'shiftEntries' => function (HasMany $query) {
+        $query->where('freeloaded', true);
+    }])
         ->orderBy('name')
         ->get();
     foreach ($users as $user) {
         $user->setAttribute(
             'freeloads',
-            $user->shiftEntries()
+            $user->shiftEntries
                 ->where('freeloaded', true)
                 ->count()
         );
@@ -343,13 +350,13 @@ function load_user()
 {
     $request = request();
     if (!$request->has('user_id')) {
-        throw_redirect(page_link_to());
+        throw_redirect(url('/'));
     }
 
     $user = User::find($request->input('user_id'));
     if (!$user) {
         error(__('User doesn\'t exist.'));
-        throw_redirect(page_link_to());
+        throw_redirect(url('/'));
     }
 
     return $user;
@@ -436,4 +443,58 @@ function shiftCalendarRendererByShiftFilter(ShiftsFilter $shiftsFilter)
     }
 
     return new ShiftCalendarRenderer($filtered_shifts, $needed_angeltypes, $shift_entries, $shiftsFilter);
+}
+
+/**
+ * Generates a hint, if user joined angeltypes that require a driving license and the user has no driver license
+ * information provided.
+ *
+ * @return string|null
+ */
+function user_driver_license_required_hint()
+{
+    $user = auth()->user();
+
+    // User has already entered data, no hint needed.
+    if ($user->license->wantsToDrive()) {
+        return null;
+    }
+
+    $angeltypes = $user->userAngelTypes;
+    foreach ($angeltypes as $angeltype) {
+        if ($angeltype->requires_driver_license) {
+            return sprintf(
+                __('angeltype.driving_license.required.info.here'),
+                '<a href="' . url('/settings/certificates') . '">' . __('driving_license.info') . '</a>'
+            );
+        }
+    }
+
+    return null;
+}
+
+function user_ifsg_certificate_required_hint()
+{
+    $user = auth()->user();
+
+    // User has already entered data, no hint needed.
+    if (!config('ifsg_enabled') || $user->license->ifsg_light || $user->license->ifsg) {
+        return null;
+    }
+
+    $angeltypes = $user->userAngelTypes;
+    foreach ($angeltypes as $angeltype) {
+        if (
+            $angeltype->requires_ifsg_certificate && !(
+                $user->license->ifsg_certificate || $user->license->ifsg_certificate_light
+            )
+        ) {
+            return sprintf(
+                __('angeltype.ifsg.required.info.here'),
+                '<a href="' . url('/settings/certificates') . '">' . __('ifsg.info') . '</a>'
+            );
+        }
+    }
+
+    return null;
 }

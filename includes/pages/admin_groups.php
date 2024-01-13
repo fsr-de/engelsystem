@@ -21,28 +21,31 @@ function admin_groups()
     $html = '';
     $request = request();
     /** @var Group[]|Collection $groups */
-    $groups = Group::query()->orderBy('name')->get();
+    $groups = Group::with('privileges')->orderBy('name')->get();
 
     if (!$request->has('action')) {
         $groups_table = [];
         foreach ($groups as $group) {
             /** @var Privilege[]|Collection $privileges */
-            $privileges = $group->privileges()->orderBy('name')->get();
+            $privileges = $group->privileges->sortBy('name');
             $privileges_html = [];
 
             foreach ($privileges as $privilege) {
-                $privileges_html[] = $privilege['name'];
+                $privileges_html[] = htmlspecialchars($privilege['name']);
             }
 
             $groups_table[] = [
-                'name'       => $group->name,
+                'name'       => htmlspecialchars($group->name),
                 'privileges' => join(', ', $privileges_html),
                 'actions'    => button(
-                    page_link_to(
-                        'admin_groups',
+                    url(
+                        '/admin-groups',
                         ['action' => 'edit', 'id' => $group->id]
                     ),
-                    icon('pencil') . __('edit'),
+                    icon('pencil'),
+                    '',
+                    '',
+                    __('form.edit'),
                     'btn-sm'
                 ),
             ];
@@ -50,7 +53,7 @@ function admin_groups()
 
         return page_with_title(admin_groups_title(), [
             table([
-                'name'       => __('Name'),
+                'name'       => __('general.name'),
                 'privileges' => __('Privileges'),
                 'actions'    => '',
             ], $groups_table),
@@ -72,18 +75,18 @@ function admin_groups()
                     foreach ($privileges as $privilege) {
                         $privileges_form[] = form_checkbox(
                             'privileges[]',
-                            $privilege->description . ' (' . $privilege->name . ')',
+                            htmlspecialchars($privilege->description . ' (' . $privilege->name . ')'),
                             $privilege->selected != '',
                             $privilege->id,
-                            'privilege-' . $privilege->name
+                            'privilege-' . htmlspecialchars($privilege->name)
                         );
                     }
 
-                    $privileges_form[] = form_submit('submit', __('Save'));
-                    $html .= page_with_title(__('Edit group') . ' ' . $group->name, [
+                    $privileges_form[] = form_submit('submit', icon('save') . __('form.save'));
+                    $html .= page_with_title(__('Edit group') . ' ' . htmlspecialchars($group->name), [
                         form(
                             $privileges_form,
-                            page_link_to('admin_groups', ['action' => 'save', 'id' => $group->id])
+                            url('/admin-groups', ['action' => 'save', 'id' => $group->id])
                         ),
                     ]);
                 } else {
@@ -118,7 +121,7 @@ function admin_groups()
                         'Group privileges of group ' . $group->name
                         . ' edited: ' . join(', ', $privilege_names)
                     );
-                    throw_redirect(page_link_to('admin_groups'));
+                    throw_redirect(url('/admin-groups'));
                 } else {
                     return error('No Group found.', true);
                 }

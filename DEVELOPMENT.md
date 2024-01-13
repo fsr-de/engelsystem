@@ -13,10 +13,14 @@ Please ensure that your pull requests follow the [PSR-12](https://www.php-fig.or
 You can check that by running
 ```bash
 composer run phpcs
+# with docker
+docker exec engelsystem_dev-es_workspace-1 composer run phpcs
 ```
 You may auto fix reported issues by running
 ```bash
 composer run phpcbf
+# with docker
+docker exec engelsystem_dev-es_workspace-1 composer run phpcbf
 ```
 
 ## Pre-commit hooks
@@ -68,7 +72,7 @@ docker compose exec es_workspace yarn build
 docker compose exec -e THEMES=0,1 es_workspace yarn build
 
 # Update the translation files
-docker compose exec es_workspace find /var/www/resources/lang -type f -name '*.po' -exec sh -c 'file="{}"; msgfmt "${file%.*}.po" -o "${file%.*}.mo"' \;
+docker compose exec es_workspace find /var/www/resources/lang -type f -name '*.po' -exec sh -c 'msgfmt "${1%.*}.po" -o"${1%.*}.mo"' shell {} \;
 
 # Run the migrations
 docker compose exec es_workspace bin/migrate
@@ -114,7 +118,7 @@ The following instructions explain how to get, build and run the latest Engelsys
     ```
 * Generate translation files
   ```bash
-  find resources/lang/ -type f -name '*.po' -exec sh -c 'file="{}"; msgfmt "${file%.*}.po" -o "${file%.*}.mo"' \;
+  find resources/lang/ -type f -name '*.po' -exec sh -c 'msgfmt "${1%.*}.po" -o"${1%.*}.mo"' shell {} \;
   ```
 
 ## Testing

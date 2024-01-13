@@ -7,10 +7,8 @@ namespace Engelsystem\Events\Listener;
 use Engelsystem\Mail\EngelsystemMailer;
 use Engelsystem\Models\News as NewsModel;
 use Engelsystem\Models\User\Settings as UserSettings;
-use Engelsystem\Models\User\User;
 use Illuminate\Database\Eloquent\Collection;
 use Psr\Log\LoggerInterface;
-use Symfony\Component\Mailer\Exception\TransportException;
 
 class News
 {
@@ -21,32 +19,34 @@ class News
     ) {
     }
 
-    public function created(NewsModel $news): void
+    public function created(NewsModel $news, bool $sendNotification = true): void
     {
+        $this->sendMail($news, 'notification.news.new', 'emails/news-new', $sendNotification);
+    }
+
+    public function updated(NewsModel $news, bool $sendNotification = true): void
+    {
+        $this->sendMail($news, 'notification.news.updated', 'emails/news-updated', $sendNotification);
+    }
+
+    protected function sendMail(NewsModel $news, string $subject, string $template, bool $sendNotification = true): void
+    {
+        if (!$sendNotification) {
+            return;
+        }
+
         /** @var UserSettings[]|Collection $recipients */
         $recipients = $this->settings
-            ->whereEmailNews(true)
-            ->with('user')
+            ->with('user.personalData')
+            ->where('email_news', true)
             ->get();
 
         foreach ($recipients as $recipient) {
-            $this->sendMail($news, $recipient->user, 'notification.news.new', 'emails/news-new');
-        }
-    }
-
-    protected function sendMail(NewsModel $news, User $user, string $subject, string $template): void
-    {
-        try {
             $this->mailer->sendViewTranslated(
-                $user,
+                $recipient->user,
                 $subject,
                 $template,
-                ['title' => $news->title, 'news' => $news, 'username' => $user->displayName]
-            );
-        } catch (TransportException $e) {
-            $this->log->error(
-                'Unable to send email "{title}" to user {user} with {exception}',
-                ['title' => $subject, 'user' => $user->name, 'exception' => $e]
+                ['title' => $news->title, 'news' => $news, 'username' => $recipient->user->displayName]
             );
         }
     }

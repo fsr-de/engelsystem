@@ -6,6 +6,7 @@ namespace Engelsystem\Controllers\Admin;
 
 use Engelsystem\Controllers\BaseController;
 use Engelsystem\Controllers\HasUserNotifications;
+use Engelsystem\Controllers\NotificationType;
 use Engelsystem\Helpers\Authenticator;
 use Engelsystem\Http\Redirector;
 use Engelsystem\Http\Request;
@@ -38,18 +39,19 @@ class NewsController extends BaseController
         $news = $this->news->find($newsId);
         $isMeeting = (bool) $request->get('meeting', false);
 
-        return $this->showEdit($news, $isMeeting);
+        return $this->showEdit($news, !$news, $isMeeting);
     }
 
-    protected function showEdit(?News $news, bool $isMeetingDefault = false): Response
+    protected function showEdit(?News $news, bool $sendNotification = true, bool $isMeetingDefault = false): Response
     {
         return $this->response->withView(
             'pages/news/edit.twig',
             [
-                'news'         => $news,
-                'is_meeting'   => $news ? $news->is_meeting : $isMeetingDefault,
-                'is_pinned'    => $news ? $news->is_pinned : false,
-                'is_important' => $news ? $news->is_important : false,
+                'news'           => $news,
+                'is_meeting'     => $news ? $news->is_meeting : $isMeetingDefault,
+                'is_pinned'      => $news ? $news->is_pinned : false,
+                'is_highlighted' => $news ? $news->is_highlighted : false,
+                'send_notification' => $sendNotification,
             ],
         );
     }
@@ -61,17 +63,7 @@ class NewsController extends BaseController
         /** @var News $news */
         $news = $this->news->findOrNew($newsId);
 
-        $data = $this->validate($request, [
-            'title'        => 'required',
-            'text'         => 'required',
-            'is_meeting'   => 'optional|checked',
-            'is_pinned'    => 'optional|checked',
-            'is_important' => 'optional|checked',
-            'delete'       => 'optional|checked',
-            'preview'      => 'optional|checked',
-        ]);
-
-        if (!is_null($data['delete'])) {
+        if ($request->request->has('delete')) {
             $news->delete();
 
             $this->log->info(
@@ -87,6 +79,17 @@ class NewsController extends BaseController
             return $this->redirect->to('/news');
         }
 
+        $data = $this->validate($request, [
+            'title'          => 'required',
+            'text'           => 'required',
+            'is_meeting'     => 'optional|checked',
+            'is_pinned'      => 'optional|checked',
+            'is_highlighted' => 'optional|checked',
+            'delete'         => 'optional|checked',
+            'preview'        => 'optional|checked',
+            'send_notification' => 'optional|checked',
+        ]);
+
         if (!$news->user) {
             $news->user()->associate($this->auth->user());
         }
@@ -94,27 +97,34 @@ class NewsController extends BaseController
         $news->text = $data['text'];
         $news->is_meeting = !is_null($data['is_meeting']);
         $news->is_pinned = !is_null($data['is_pinned']);
+        $notify = !is_null($data['send_notification']);
 
-        if ($this->auth->can('news.important')) {
-            $news->is_important = !is_null($data['is_important']);
+        if ($this->auth->can('news.highlight')) {
+            $news->is_highlighted = !is_null($data['is_highlighted']);
         }
 
         if (!is_null($data['preview'])) {
-            return $this->showEdit($news);
+            return $this->showEdit($news, $notify);
         }
 
         $isNewNews = !$news->id;
+        if ($isNewNews && News::where('title', $news->title)->where('text', $news->text)->count()) {
+            $this->addNotification('news.edit.duplicate', NotificationType::ERROR);
+            return $this->showEdit($news, $notify);
+        }
         $news->save();
 
         if ($isNewNews) {
-            event('news.created', ['news' => $news]);
+            event('news.created', ['news' => $news, 'sendNotification' => $notify]);
+        } else {
+            event('news.updated', ['news' => $news, 'sendNotification' => $notify]);
         }
 
         $this->log->info(
             'Updated {pinned}{type} "{news}": {text}',
             [
                 'pinned'    => $news->is_pinned ? 'pinned ' : '',
-                'important' => $news->is_important ? 'important ' : '',
+                'highlighted' => $news->is_highlighted ? 'highlighted ' : '',
                 'type'      => $news->is_meeting ? 'meeting' : 'news',
                 'news'      => $news->title,
                 'text'      => $news->text,

@@ -6,7 +6,10 @@
 
 {% block content %}
     <div class="container">
-        <h1>{{ block('title') }}</h1>
+        <h1>
+            {{ m.button(m.icon('chevron-left'), url('/questions'), null, 'sm', __('general.back')) }}
+            {{ block('title') }}
+        </h1>
 
         {% include 'layouts/parts/messages.twig' %}
 
@@ -14,12 +17,12 @@
             <div class="row">
                 <div class="col-md-6">
                     <p>
-                        {{ m.icon('clock') }} {{ question.updated_at.format(__('Y-m-d H:i')) }}
+                        {{ m.icon('clock') }} {{ question.updated_at.format(__('general.datetime')) }}
 
                         {% if question.updated_at != question.created_at %}
                             &emsp;{{ __('form.updated') }}
                             <br>
-                            {{ m.icon('clock') }} {{ question.created_at.format(__('Y-m-d H:i')) }}
+                            {{ m.icon('clock') }} {{ question.created_at.format(__('general.datetime')) }}
                         {% endif %}
                     </p>
                 </div>
@@ -31,20 +34,25 @@
 
             <div class="row">
                 <div class="col-md-12">
-                    {{ f.textarea('text', __('question.question'), {'required': true, 'rows': 10, 'value': question ? question.text : ''}) }}
+                    {{ f.textarea('text', __('question.question'), {
+                        'required': true,
+                        'rows': 10,
+                        'value': question ? question.text : '',
+                    }) }}
                 </div>
                 <div class="col-md-12">
                     {% if is_admin|default(false) %}
-                        {{ f.textarea('answer', __('question.answer'), {'required': true, 'rows': 10, 'value': question ? question.answer : ''}) }}
+                        {{ f.textarea('answer', __('question.answer'), {
+                            'required': true,
+                            'rows': 10, 'value': question ? question.answer : '',
+                        }) }}
                     {% endif %}
 
-                    {{ f.submit() }}
-
+                    {{ f.submit(__('form.save'), {'icon_left': 'save'}) }}
                     {% if is_admin|default(false) %}
                         {{ f.submit(m.icon('eye'), {'name': 'preview', 'btn_type': 'info', 'title': __('form.preview')}) }}
-
                         {% if question and question.id %}
-                            {{ f.submit(m.icon('trash'), {'name': 'delete', 'btn_type': 'danger', 'title': __('form.delete')}) }}
+                            {{ f.delete(__('form.delete'), {'confirm_title': __('question.delete.title', [question.text[:40]|e])}) }}
                         {% endif %}
                     {% endif %}
                 </div>

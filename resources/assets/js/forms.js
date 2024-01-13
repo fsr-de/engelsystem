@@ -4,28 +4,24 @@ import { ready } from './ready';
 
 /**
  * Sets all checkboxes to the wanted state
- *
- * @param {string} id Id of the element containing all the checkboxes
- * @param {boolean} checked True if the checkboxes should be checked
  */
-global.checkAll = (id, checked) => {
-  document.querySelectorAll(`#${id} input[type="checkbox"]`).forEach((element) => {
-    element.checked = checked;
+ready(() => {
+  document.querySelectorAll('button.checkbox-selection').forEach((buttonElement) => {
+    buttonElement.addEventListener('click', () => {
+      document.querySelectorAll(`#${buttonElement.dataset.id} input[type="checkbox"]`).forEach((checkboxElement) => {
+        /**
+         * @type {boolean|int[]}
+         */
+        const value = JSON.parse(buttonElement.dataset.value);
+        if (typeof value === 'boolean') {
+          checkboxElement.checked = value;
+        } else {
+          checkboxElement.checked = value.includes(Number(checkboxElement.value));
+        }
+      });
+    });
   });
-};
-
-/**
- * Sets the checkboxes according to the given type
- *
- * @param {string} id The Id of the element containing all the checkboxes
- * @param {int[]} shiftsList A list of numbers
- */
-global.checkOwnTypes = (id, shiftsList) => {
-  document.querySelectorAll(`#${id} input[type="checkbox"]`).forEach((element) => {
-    const value = Number(element.value);
-    element.checked = shiftsList.includes(value);
-  });
-};
+});
 
 ready(() => {
   /**
@@ -156,7 +152,7 @@ const DISABLE_ELEMENTS = [
 ready(() => {
   // get all input-radio's and add for each an onChange event listener
   document.querySelectorAll('input[type="radio"]').forEach((radioElement) => {
-    // build selector and get all corrsponding elements for this input-radio
+    // build selector and get all corresponding elements for this input-radio
     const selector = DISABLE_ELEMENTS.map(
       (tagName) => `${tagName}[data-radio-name="${radioElement.name}"][data-radio-value]`
     ).join(',');
@@ -180,21 +176,29 @@ ready(() => {
 });
 
 ready(() => {
-  document.querySelectorAll('.spinner-down').forEach((element) => {
-    const inputElement = document.getElementById(element.dataset.inputId);
-    if (inputElement) {
-      element.addEventListener('click', () => {
-        inputElement.stepDown();
-      });
-    }
+  const addClickHandler = (selector, onClick) => {
+    document.querySelectorAll(selector).forEach((element) => {
+      const inputElement = document.getElementById(element.dataset.inputId);
+
+      if (!inputElement || !inputElement.stepUp || !inputElement.stepDown) return;
+
+      if (inputElement.disabled || inputElement.readOnly) {
+        // The input element is disabled or read-only → disable the +/- button as well.
+        // Note that changing the "disabled" or "readonly" attributes during runtime is not yet supported.
+        element.setAttribute('disabled', 'disabled');
+        return;
+      }
+
+      element.addEventListener('click', () => onClick(inputElement));
+    });
+  };
+
+  addClickHandler('.spinner-up', (inputElement) => {
+    inputElement.stepUp();
   });
-  document.querySelectorAll('.spinner-up').forEach((element) => {
-    const inputElement = document.getElementById(element.dataset.inputId);
-    if (inputElement) {
-      element.addEventListener('click', () => {
-        inputElement.stepUp();
-      });
-    }
+
+  addClickHandler('.spinner-down', (inputElement) => {
+    inputElement.stepDown();
   });
 });
 
@@ -227,10 +231,15 @@ ready(() => {
   });
 });
 
+/**
+ * Init select dropdown choices
+ */
 ready(() => {
   document.querySelectorAll('select').forEach((element) => {
     element.choices = new Choices(element, {
-      allowHTML: false,
+      allowHTML: true,
+      shouldSort: false,
+      shouldSortItems: false,
       classNames: {
         containerInner: 'choices__inner form-control',
       },
@@ -262,6 +271,80 @@ ready(() => {
 });
 
 /**
+ * Init Bootstrap Modals
+ */
+ready(() => {
+  document.querySelectorAll('.modal').forEach((element) => new bootstrap.Modal(element));
+});
+
+/**
+ * Show confirmation modal before submitting form
+ *
+ * Uses the buttons data attributes to show in the modal:
+ * - data-confirm_title: Optional title of the modal
+ * - data-confirm_submit: Body of the modal
+ *
+ * The class, title and content of the requesting button gets copied for confirmation
+ *
+ */
+ready(() => {
+  document.querySelectorAll('[data-confirm_submit_title], [data-confirm_submit_text]').forEach((element) => {
+    let modalOpen = false;
+    let oldType = element.type;
+    if (element.type !== 'submit') {
+      return;
+    }
+
+    element.type = 'button';
+    element.addEventListener('click', (event) => {
+      if (modalOpen) {
+        return;
+      }
+      event.preventDefault();
+
+      document.getElementById('confirmation-modal')?.remove();
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        `
+          <div class="modal" tabindex="-1" id="confirmation-modal">
+            <div class="modal-dialog">
+              <div class="modal-content ${document.body.dataset.theme_type === 'light' ? 'bg-white' : 'bg-dark'}">
+                <div class="modal-header">
+                  <h5 class="modal-title">${element.dataset.confirm_submit_title ?? ''}</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body${element.dataset.confirm_submit_text ? '' : ' d-none'}">
+                  <p>${element.dataset.confirm_submit_text ?? ''}</p>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="${element.className}"
+                    title="${element.title}" data-submit="">
+                    ${element.dataset.confirm_button_text ?? element.innerHTML}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `
+      );
+
+      let modal = document.getElementById('confirmation-modal');
+      modal.addEventListener('hide.bs.modal', () => {
+        modalOpen = false;
+      });
+      modal.querySelector('[data-submit]').addEventListener('click', (event) => {
+        element.type = oldType;
+        element.click();
+      });
+
+      modalOpen = true;
+      let bootstrapModal = new bootstrap.Modal(modal);
+      bootstrapModal.show();
+    });
+  });
+});
+
+/**
  * Show oauth buttons on welcome title click
  */
 ready(() => {
@@ -284,27 +367,48 @@ ready(() => {
  * Uses DOMContentLoaded to prevent flickering
  */
 ready(() => {
-  const filter = document.getElementById('collapseShiftsFilterSelect');
-  if (!filter || localStorage.getItem('collapseShiftsFilterSelect') !== 'hidden.bs.collapse') {
-    return;
-  }
+  const collapseElement = document.getElementById('collapseShiftsFilterSelect');
+  if (collapseElement) {
+    if (localStorage.getItem('collapseShiftsFilterSelect') === 'hidden.bs.collapse') {
+      collapseElement.classList.remove('show');
+    }
 
-  filter.classList.remove('show');
+    /**
+     * @param {Event} event
+     */
+    const onChange = (event) => {
+      localStorage.setItem('collapseShiftsFilterSelect', event.type);
+    };
+
+    collapseElement.addEventListener('hidden.bs.collapse', onChange);
+    collapseElement.addEventListener('shown.bs.collapse', onChange);
+  }
 });
 
+/**
+ * Show/hide checkboxes for User Driver-Licenses
+ */
 ready(() => {
-  if (typeof localStorage === 'undefined') {
-    return;
+  const checkboxElement = document.getElementById('wants_to_drive');
+  const drivingLicenseElement = document.getElementById('driving_license');
+
+  if (checkboxElement && drivingLicenseElement) {
+    drivingLicenseElement.hidden = !checkboxElement.checked;
+
+    checkboxElement.addEventListener('click', () => {
+      drivingLicenseElement.hidden = !checkboxElement.checked;
+    });
   }
+});
 
-  /**
-   * @param {Event} event
-   */
-  const onChange = (event) => {
-    localStorage.setItem('collapseShiftsFilterSelect', event.type);
-  };
-
-  document.getElementById('collapseShiftsFilterSelect')?.addEventListener('hidden.bs.collapse', onChange);
-
-  document.getElementById('collapseShiftsFilterSelect')?.addEventListener('shown.bs.collapse', onChange);
+/**
+ * Prevent scrolling on # links in menu
+ */
+ready(() => {
+  const elements = document.querySelectorAll('.navbar a[href="#"]');
+  elements.forEach((a) => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+    });
+  });
 });

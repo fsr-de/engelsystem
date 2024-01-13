@@ -7,6 +7,7 @@ namespace Engelsystem\Test\Unit\Controllers;
 use Engelsystem\Controllers\FeedController;
 use Engelsystem\Helpers\Authenticator;
 use Engelsystem\Helpers\Carbon;
+use Engelsystem\Http\UrlGenerator;
 use Engelsystem\Models\News;
 use Engelsystem\Models\Shifts\ShiftEntry;
 use Engelsystem\Models\User\User;
@@ -18,14 +19,16 @@ use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 class FeedControllerTest extends ControllerTest
 {
     protected Authenticator|MockObject $auth;
+    protected UrlGenerator|MockObject $url;
 
     /**
      * @covers \Engelsystem\Controllers\FeedController::__construct
      * @covers \Engelsystem\Controllers\FeedController::atom
+     * @covers \Engelsystem\Controllers\FeedController::withEtag
      */
     public function testAtom(): void
     {
-        $controller = new FeedController($this->auth, $this->request, $this->response);
+        $controller = new FeedController($this->auth, $this->request, $this->response, $this->url);
 
         $this->setExpects(
             $this->response,
@@ -33,6 +36,12 @@ class FeedControllerTest extends ControllerTest
             ['content-type', 'application/atom+xml; charset=utf-8'],
             $this->response
         );
+        $this->response->expects($this->once())
+            ->method('setEtag')
+            ->willReturnCallback(function ($etag) {
+                $this->assertNotEmpty($etag);
+                return $this->response;
+            });
         $this->response->expects($this->once())
             ->method('withView')
             ->willReturnCallback(function ($view, $data) {
@@ -50,7 +59,7 @@ class FeedControllerTest extends ControllerTest
      */
     public function testRss(): void
     {
-        $controller = new FeedController($this->auth, $this->request, $this->response);
+        $controller = new FeedController($this->auth, $this->request, $this->response, $this->url);
 
         $this->setExpects(
             $this->response,
@@ -58,6 +67,7 @@ class FeedControllerTest extends ControllerTest
             ['content-type', 'application/rss+xml; charset=utf-8'],
             $this->response
         );
+        $this->setExpects($this->response, 'setEtag', null, $this->response);
         $this->response->expects($this->once())
             ->method('withView')
             ->willReturnCallback(function ($view, $data) {
@@ -66,6 +76,7 @@ class FeedControllerTest extends ControllerTest
 
                 return $this->response;
             });
+
         $controller->rss();
     }
 
@@ -81,7 +92,7 @@ class FeedControllerTest extends ControllerTest
             new Session(new MockArraySessionStorage()),
             new User(),
         );
-        $controller = new FeedController($this->auth, $this->request, $this->response);
+        $controller = new FeedController($this->auth, $this->request, $this->response, $this->url);
 
         /** @var User $user */
         $user = User::factory()->create(['api_key' => 'fo0']);
@@ -94,6 +105,8 @@ class FeedControllerTest extends ControllerTest
                 ['content-disposition', 'attachment; filename=shifts.ics']
             )
             ->willReturn($this->response);
+
+        $this->setExpects($this->response, 'setEtag', null, $this->response);
 
         $this->response->expects($this->once())
             ->method('withView')
@@ -109,6 +122,7 @@ class FeedControllerTest extends ControllerTest
 
                 return $this->response;
             });
+
         $controller->ical();
     }
 
@@ -124,7 +138,8 @@ class FeedControllerTest extends ControllerTest
             new Session(new MockArraySessionStorage()),
             new User(),
         );
-        $controller = new FeedController($this->auth, $this->request, $this->response);
+        $controller = new FeedController($this->auth, $this->request, $this->response, $this->url);
+        $this->setExpects($this->url, 'to', null, 'https://host/shift/1337', $this->atLeastOnce());
 
         /** @var User $user */
         $user = User::factory()->create(['api_key' => 'fo0']);
@@ -136,6 +151,8 @@ class FeedControllerTest extends ControllerTest
             ['content-type', 'application/json; charset=utf-8'],
             $this->response
         );
+
+        $this->setExpects($this->response, 'setEtag', null, $this->response);
 
         $this->response->expects($this->once())
             ->method('withContent')
@@ -151,7 +168,8 @@ class FeedControllerTest extends ControllerTest
                     [
                         'name', 'title', 'description',
                         'Comment',
-                        'SID', 'shifttype_id', 'URL',
+                        'SID', 'shifttype_id', 'URL', 'link',
+                        'shifttype_name', 'shifttype_description',
                         'RID', 'Name', 'map_url',
                         'start', 'start_date', 'end', 'end_date',
                         'timezone', 'event_timezone',
@@ -162,6 +180,7 @@ class FeedControllerTest extends ControllerTest
 
                 return $this->response;
             });
+
         $controller->shifts();
     }
 
@@ -180,10 +199,11 @@ class FeedControllerTest extends ControllerTest
      */
     public function testGetNewsMeetings(bool $isMeeting): void
     {
-        $controller = new FeedController($this->auth, $this->request, $this->response);
+        $controller = new FeedController($this->auth, $this->request, $this->response, $this->url);
 
         $this->request->attributes->set('meetings', $isMeeting);
         $this->setExpects($this->response, 'withHeader', null, $this->response);
+        $this->setExpects($this->response, 'setEtag', null, $this->response);
         $this->response->expects($this->once())
             ->method('withView')
             ->willReturnCallback(function ($view, $data) use ($isMeeting) {
@@ -207,9 +227,10 @@ class FeedControllerTest extends ControllerTest
     public function testGetNewsLimit(): void
     {
         News::query()->where('id', '<>', 1)->update(['updated_at' => Carbon::now()->subHour()]);
-        $controller = new FeedController($this->auth, $this->request, $this->response);
+        $controller = new FeedController($this->auth, $this->request, $this->response, $this->url);
 
         $this->setExpects($this->response, 'withHeader', null, $this->response);
+        $this->setExpects($this->response, 'setEtag', null, $this->response);
         $this->response->expects($this->once())
             ->method('withView')
             ->willReturnCallback(function ($view, $data) {
@@ -233,6 +254,7 @@ class FeedControllerTest extends ControllerTest
 
         $this->config->set('display_news', 10);
         $this->auth = $this->createMock(Authenticator::class);
+        $this->url = $this->createMock(UrlGenerator::class);
 
         News::factory(7)->create(['is_meeting' => false]);
         News::factory(5)->create(['is_meeting' => true]);

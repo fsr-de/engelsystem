@@ -15,7 +15,6 @@ use Engelsystem\Test\Unit\TestCase;
 use PHPUnit\Framework\MockObject\MockObject;
 use Psr\Log\LoggerInterface;
 use Psr\Log\Test\TestLogger;
-use Symfony\Component\Mailer\Exception\TransportException;
 
 class NewsTest extends TestCase
 {
@@ -23,7 +22,9 @@ class NewsTest extends TestCase
 
     protected TestLogger $log;
 
-    protected EngelsystemMailer|MockObject $mailer;
+    protected EngelsystemMailer | MockObject $mailer;
+
+    protected NewsModel $news;
 
     protected User $user;
 
@@ -34,33 +35,68 @@ class NewsTest extends TestCase
      */
     public function testCreated(): void
     {
-        $this->app->instance('config', new Config());
-        /** @var NewsModel $news */
-        $news = NewsModel::factory(['title' => 'Foo'])->create();
-
-        $i = 0;
-        $this->mailer->expects($this->exactly(2))
+        $this->mailer->expects($this->once())
             ->method('sendViewTranslated')
-            ->willReturnCallback(function (User $user, string $subject, string $template, array $data) use (&$i): void {
-                $this->assertEquals(1, $user->id);
+            ->willReturnCallback(function (User $user, string $subject, string $template, array $data): bool {
+                $this->assertEquals($this->user->id, $user->id);
                 $this->assertEquals('notification.news.new', $subject);
                 $this->assertEquals('emails/news-new', $template);
                 $this->assertEquals('Foo', array_values($data)[0]);
 
-                if ($i++ > 0) { // On second run
-                    throw new TransportException('Oops');
-                }
+                return true;
             });
 
         /** @var News $listener */
         $listener = $this->app->make(News::class);
-        $error = 'Unable to send email';
+        $listener->created($this->news);
+    }
 
-        $listener->created($news);
-        $this->assertFalse($this->log->hasErrorThatContains($error));
+    /**
+     * @covers \Engelsystem\Events\Listener\News::created
+     * @covers \Engelsystem\Events\Listener\News::sendMail
+     */
+    public function testCreatedNoNotification(): void
+    {
+        $this->setExpects($this->mailer, 'sendViewTranslated', null, null, $this->never());
 
-        $listener->created($news);
-        $this->assertTrue($this->log->hasErrorThatContains($error));
+        /** @var News $listener */
+        $listener = $this->app->make(News::class);
+        $listener->created($this->news, false);
+    }
+
+    /**
+     * @covers \Engelsystem\Events\Listener\News::updated
+     * @covers \Engelsystem\Events\Listener\News::sendMail
+     */
+    public function testUpdated(): void
+    {
+        $this->mailer->expects($this->once())
+            ->method('sendViewTranslated')
+            ->willReturnCallback(function (User $user, string $subject, string $template, array $data): bool {
+                $this->assertEquals($this->user->id, $user->id);
+                $this->assertEquals('notification.news.updated', $subject);
+                $this->assertEquals('emails/news-updated', $template);
+                $this->assertEquals('Foo', array_values($data)[0]);
+
+                return true;
+            });
+
+        /** @var News $listener */
+        $listener = $this->app->make(News::class);
+        $listener->updated($this->news);
+    }
+
+    /**
+     * @covers \Engelsystem\Events\Listener\News::updated
+     * @covers \Engelsystem\Events\Listener\News::sendMail
+     */
+    public function testUpdatedNoNotification(): void
+    {
+        $this->setExpects($this->mailer, 'sendViewTranslated', null, null, $this->never());
+
+        /** @var News $listener */
+        $listener = $this->app->make(News::class);
+        $listener->updated($this->news, false);
     }
 
     protected function setUp(): void
@@ -73,6 +109,10 @@ class NewsTest extends TestCase
 
         $this->mailer = $this->createMock(EngelsystemMailer::class);
         $this->app->instance(EngelsystemMailer::class, $this->mailer);
+
+        $this->app->instance('config', new Config());
+
+        $this->news = NewsModel::factory(['title' => 'Foo'])->create();
 
         $this->user = User::factory()
             ->has(Settings::factory([

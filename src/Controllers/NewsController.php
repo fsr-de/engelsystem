@@ -53,8 +53,7 @@ class NewsController extends BaseController
         $newsId = (int) $request->getAttribute('news_id');
 
         $news = $this->news
-            ->with('user')
-            ->with('comments')
+            ->with(['user', 'comments.user.state', 'comments.user.personalData'])
             ->findOrFail($newsId);
 
         return $this->renderView('pages/news/news.twig', ['news' => $news]);
@@ -130,24 +129,27 @@ class NewsController extends BaseController
             $query = $query->where('is_meeting', true);
         }
 
+        $count = $query->count();
+        $pagesCount = max(1, ceil($count / $perPage));
+        $page = max(1, min($page, $pagesCount));
+
         $news = $query
             ->with('user')
             ->withCount('comments')
             ->orderByDesc('is_pinned')
-            ->orderByDesc('is_important')
+            ->orderByDesc('is_highlighted')
             ->orderByDesc('updated_at')
             ->orderByDesc('id')
             ->limit($perPage)
             ->offset(($page - 1) * $perPage)
             ->get();
-        $pagesCount = ceil($query->count() / $perPage);
 
         return $this->renderView(
             'pages/news/overview.twig',
             [
                 'news'          => $news,
-                'pages'         => max(1, $pagesCount),
-                'page'          => max(1, min($page, $pagesCount)),
+                'pages'         => $pagesCount,
+                'page'          => $page,
                 'only_meetings' => $onlyMeetings,
                 'is_overview'   => true,
             ]

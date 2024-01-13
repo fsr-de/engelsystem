@@ -30,10 +30,20 @@ class PersonalData extends HasUserModel
     /** @var string The table associated with the model */
     protected $table = 'users_personal_data'; // phpcs:ignore
 
-    /** @var array<string> The attributes that should be mutated to dates */
-    protected $dates = [ // phpcs:ignore
-        'planned_arrival_date',
-        'planned_departure_date',
+    /** @var array<string, null> default attributes */
+    protected $attributes = [ // phpcs:ignore
+        'first_name'             => null,
+        'last_name'              => null,
+        'pronoun'                => null,
+        'shirt_size'             => null,
+        'planned_arrival_date'   => null,
+        'planned_departure_date' => null,
+    ];
+
+    /** @var array<string, string> */
+    protected $casts = [ // phpcs:ignore
+        'planned_arrival_date'   => 'datetime',
+        'planned_departure_date' => 'datetime',
     ];
 
     /**

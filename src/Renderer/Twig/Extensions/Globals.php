@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Engelsystem\Renderer\Twig\Extensions;
 
 use Engelsystem\Helpers\Authenticator;
+use Engelsystem\Helpers\DayOfEvent;
 use Engelsystem\Http\Request;
 use Twig\Extension\AbstractExtension as TwigExtension;
 use Twig\Extension\GlobalsInterface as GlobalsInterface;
@@ -13,6 +14,8 @@ use function array_key_exists;
 
 class Globals extends TwigExtension implements GlobalsInterface
 {
+    protected array $globals = [];
+
     public function __construct(protected Authenticator $auth, protected Request $request)
     {
     }
@@ -21,6 +24,18 @@ class Globals extends TwigExtension implements GlobalsInterface
      * Returns a list of global variables to add to the existing list.
      */
     public function getGlobals(): array
+    {
+        if (empty($this->globals)) {
+            $this->globals = $this->getGlobalValues();
+        }
+
+        return $this->globals;
+    }
+
+    /**
+     * Generates the list of global variables
+     */
+    protected function getGlobalValues(): array
     {
         $user = $this->auth->user();
         $themes = config('themes');
@@ -53,6 +68,7 @@ class Globals extends TwigExtension implements GlobalsInterface
             'request'       => $this->request,
             'themeId'       => $themeId,
             'theme'         => $theme,
+            'day_of_event'  => DayOfEvent::get(),
         ];
     }
 }

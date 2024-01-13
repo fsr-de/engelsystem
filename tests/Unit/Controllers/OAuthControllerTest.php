@@ -116,7 +116,7 @@ class OAuthControllerTest extends TestCase
         );
         $this->setExpects($provider, 'getResourceOwner', [$accessToken], $resourceOwner, $this->atLeastOnce());
 
-        /** @var EventDispatcher|MockObject $event */
+        /** @var EventDispatcher|MockObject $dispatcher */
         $dispatcher = $this->createMock(EventDispatcher::class);
         $this->app->instance('events.dispatcher', $dispatcher);
         $this->setExpects($dispatcher, 'dispatch', ['oauth2.login'], $dispatcher, 4);
@@ -408,7 +408,7 @@ class OAuthControllerTest extends TestCase
             $resourceOwner,
             'getId',
             null,
-            'ProVIdeR-User-IdenTifIer', // Case sensitive variation of existing entry
+            'ProVIdeR-User-IdenTifIer', // case-sensitive variation of existing entry
             $this->atLeastOnce()
         );
         $this->setExpects(
@@ -459,15 +459,10 @@ class OAuthControllerTest extends TestCase
         $this->assertEquals(4242424242, $this->session->get('oauth2_expires_at')->unix());
         $this->assertFalse($this->session->get('oauth2_enable_password'));
         $this->assertEquals(null, $this->session->get('oauth2_allow_registration'));
-        $this->assertEquals(
-            [
-                'name' => 'username',
-                'email' => 'foo.bar@localhost',
-                'first_name' => 'Foo',
-                'last_name' => 'Bar',
-            ],
-            $this->session->get('form_data')
-        );
+        $this->assertEquals($this->session->get('form-data-username'), 'username');
+        $this->assertEquals($this->session->get('form-data-email'), 'foo.bar@localhost');
+        $this->assertEquals($this->session->get('form-data-first_name'), 'Foo');
+        $this->assertEquals($this->session->get('form-data-last_name'), 'Bar');
 
         $this->config->set('registration_enabled', false);
         $this->expectException(HttpNotFound::class);
@@ -508,7 +503,7 @@ class OAuthControllerTest extends TestCase
             null,
             [
                 'nested' => [
-                    'id'    => 'new-provider-user-identifier',
+                    'id'    => 42, // new provider user identifier
                     'name'  => 'testuser',
                     'email' => 'foo.bar@localhost',
                     'first' => 'Test',
@@ -544,12 +539,10 @@ class OAuthControllerTest extends TestCase
         $this->setExpects($controller, 'getProvider', ['testprovider'], $provider, $this->atLeastOnce());
 
         $controller->index($request);
-        $this->assertEquals([
-            'email'      => 'foo.bar@localhost',
-            'name'       => 'testuser',
-            'first_name' => 'Test',
-            'last_name'  => 'Tester',
-        ], $this->session->get('form_data'));
+        $this->assertEquals($this->session->get('form-data-username'), 'testuser');
+        $this->assertEquals($this->session->get('form-data-email'), 'foo.bar@localhost');
+        $this->assertEquals($this->session->get('form-data-first_name'), 'Test');
+        $this->assertEquals($this->session->get('form-data-last_name'), 'Tester');
     }
 
 
@@ -621,7 +614,7 @@ class OAuthControllerTest extends TestCase
     }
 
     /**
-     * Setup the DB
+     * Set up the DB
      */
     public function setUp(): void
     {

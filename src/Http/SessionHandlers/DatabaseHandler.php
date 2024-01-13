@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Engelsystem\Http\SessionHandlers;
 
 use Engelsystem\Database\Database;
-use Illuminate\Database\Query\Builder as QueryBuilder;
+use Engelsystem\Helpers\Carbon;
+use Engelsystem\Models\Session;
 
 class DatabaseHandler extends AbstractHandler
 {
@@ -18,9 +19,7 @@ class DatabaseHandler extends AbstractHandler
      */
     public function read(string $id): string
     {
-        $session = $this->getQuery()
-            ->where('id', '=', $id)
-            ->first();
+        $session = Session::whereId($id)->first();
 
         return $session ? $session->payload : '';
     }
@@ -30,27 +29,14 @@ class DatabaseHandler extends AbstractHandler
      */
     public function write(string $id, string $data): bool
     {
-        $values = [
-            'payload'       => $data,
-            'last_activity' => $this->getCurrentTimestamp(),
-        ];
+        $session = Session::findOrNew($id);
+        $session->id = $id;
+        $session->payload = $data;
+        $session->last_activity = Carbon::now();
+        $session->user_id = auth()->user()?->id;
+        $session->save();
 
-        $session = $this->getQuery()
-            ->where('id', '=', $id)
-            ->first();
-
-        if (!$session) {
-            return $this->getQuery()
-                ->insert($values + [
-                        'id' => $id,
-                    ]);
-        }
-
-        $this->getQuery()
-            ->where('id', '=', $id)
-            ->update($values);
-
-        // The update return can't be used directly because it won't change if the second call is in the same second
+        // The save return can't be used directly as it won't change if the second call is in the same second
         return true;
     }
 
@@ -59,9 +45,7 @@ class DatabaseHandler extends AbstractHandler
      */
     public function destroy(string $id): bool
     {
-        $this->getQuery()
-            ->where('id', '=', $id)
-            ->delete();
+        Session::whereId($id)->delete();
 
         return true;
     }
@@ -71,25 +55,10 @@ class DatabaseHandler extends AbstractHandler
      */
     public function gc(int $max_lifetime): int|false
     {
-        $timestamp = $this->getCurrentTimestamp(-$max_lifetime);
+        $sessionDays = config('session')['lifetime'];
+        $deleteBefore = Carbon::now()->subDays($sessionDays);
 
-        return $this->getQuery()
-            ->where('last_activity', '<', $timestamp)
+        return Session::where('last_activity', '<', $deleteBefore)
             ->delete();
-    }
-
-    protected function getQuery(): QueryBuilder
-    {
-        return $this->database
-            ->getConnection()
-            ->table('sessions');
-    }
-
-    /**
-     * Format the SQL timestamp
-     */
-    protected function getCurrentTimestamp(int $diff = 0): string
-    {
-        return date('Y-m-d H:i:s', strtotime(sprintf('%+d seconds', $diff)));
     }
 }

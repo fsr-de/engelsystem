@@ -29,7 +29,7 @@ class ShiftCalendarShiftRenderer
     {
         $info_text = '';
         if ($shift->title != '') {
-            $info_text = icon('info-circle') . $shift->title . '<br>';
+            $info_text = icon('info-circle') . htmlspecialchars($shift->title) . '<br>';
         }
         list($shift_signup_state, $shifts_row) = $this->renderShiftNeededAngeltypes(
             $shift,
@@ -43,8 +43,6 @@ class ShiftCalendarShiftRenderer
         $blocks = ceil(($shift->end->timestamp - $shift->start->timestamp) / ShiftCalendarRenderer::SECONDS_PER_ROW);
         $blocks = max(1, $blocks);
 
-        $room = $shift->room;
-
         return [
             $blocks,
             div(
@@ -57,7 +55,7 @@ class ShiftCalendarShiftRenderer
                         $this->renderShiftHead($shift, $class, $shift_signup_state->getFreeEntries()),
                         div('card-body ' . $this->classBg(), [
                             $info_text,
-                            Room_name_render($room),
+                            location_name_render($shift->location),
                         ]),
                         $shifts_row,
                     ]
@@ -192,14 +190,14 @@ class ShiftCalendarShiftRenderer
             // No link and add a text hint, when the shift ended
             ShiftSignupStatus::NOT_ARRIVED => $inner_text . ' (' . __('please arrive for signup') . ')',
             ShiftSignupStatus::NOT_YET => $inner_text . ' (' . __('not yet') . ')',
-            ShiftSignupStatus::ANGELTYPE => $angeltype->restricted
-                // User has to be confirmed on the angeltype first
+            ShiftSignupStatus::ANGELTYPE => $angeltype->restricted || !$angeltype->shift_self_signup
+                // User has to be confirmed on the angeltype first or can't sign up by themselves
                 ? $inner_text . icon('mortarboard-fill')
                 // Add link to join the angeltype first
                 : $inner_text . '<br />'
                 . button(
-                    page_link_to('user_angeltypes', ['action' => 'add', 'angeltype_id' => $angeltype->id]),
-                    sprintf(__('Become %s'), $angeltype->name),
+                    url('/user-angeltypes', ['action' => 'add', 'angeltype_id' => $angeltype->id]),
+                    sprintf(__('Become %s'), htmlspecialchars($angeltype->name)),
                     'btn-sm'
                 ),
             // Shift collides or user is already signed up: No signup allowed
@@ -249,20 +247,24 @@ class ShiftCalendarShiftRenderer
         if (auth()->can('admin_shifts')) {
             $header_buttons = '<div class="ms-auto d-print-none">' . table_buttons([
                     button(
-                        page_link_to('user_shifts', ['edit_shift' => $shift->id]),
+                        url('/user-shifts', ['edit_shift' => $shift->id]),
                         icon('pencil'),
-                        'btn-' . $class . ' btn-sm border-light text-white'
+                        'btn-' . $class . ' btn-sm border-light text-white',
+                        '',
+                        __('form.edit')
                     ),
                     button(
-                        page_link_to('user_shifts', ['delete_shift' => $shift->id]),
+                        url('/user-shifts', ['delete_shift' => $shift->id]),
                         icon('trash'),
-                        'btn-' . $class . ' btn-sm border-light text-white'
+                        'btn-' . $class . ' btn-sm border-light text-white',
+                        '',
+                        __('form.delete')
                     ),
                 ]) . '</div>';
         }
         $shift_heading = $shift->start->format('H:i') . ' &dash; '
             . $shift->end->format('H:i') . ' &mdash; '
-            . $shift->shiftType->name;
+            . htmlspecialchars($shift->shiftType->name);
 
         if ($needed_angeltypes_count > 0) {
             $shift_heading = '<span class="badge bg-light text-danger me-1">' . $needed_angeltypes_count . '</span> ' . $shift_heading;

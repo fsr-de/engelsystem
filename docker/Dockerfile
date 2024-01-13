@@ -5,13 +5,13 @@ RUN composer --no-ansi install --no-dev --ignore-platform-reqs
 RUN composer --no-ansi dump-autoload --optimize
 
 # Generate .mo files
-FROM alpine as translation
+FROM alpine AS translation
 RUN apk add gettext
 COPY resources/lang/ /data
-RUN find /data -type f -name '*.po' -exec sh -c 'file="{}"; msgfmt "${file%.*}.po" -o "${file%.*}.mo"' \;
+RUN find /data -type f -name '*.po' -exec sh -c 'msgfmt "${1%.*}.po" -o"${1%.*}.mo"' shell {} \;
 
 # Build the themes
-FROM node:14-alpine as themes
+FROM node:20-alpine AS themes
 WORKDIR /app
 COPY .babelrc .browserslistrc package.json webpack.config.js yarn.lock /app/
 RUN yarn --frozen-lockfile
@@ -19,13 +19,14 @@ COPY resources/assets/ /app/resources/assets
 RUN yarn build
 
 # Generate application structure
-FROM alpine as data
+FROM alpine AS data
 COPY .babelrc .browserslistrc composer.json LICENSE package.json README.md webpack.config.js yarn.lock /app/
 COPY bin/ /app/bin
 COPY config/ /app/config
 COPY db/ /app/db
 COPY includes/ /app/includes
 COPY public/ /app/public
+COPY resources/api /app/resources/api
 COPY resources/views /app/resources/views
 COPY src/ /app/src
 COPY storage/ /app/storage

@@ -1,5 +1,6 @@
 <?php
 
+use Engelsystem\Models\User\User;
 use Illuminate\Support\Str;
 
 /**
@@ -70,17 +71,6 @@ function tabs($tabs, $selected = 0)
         '<ul class="nav nav-tabs mb-3" role="tablist">' . join($tab_header) . '</ul>',
         '<div class="tab-content">' . join($tab_content) . '</div>',
     ]);
-}
-
-/**
- * Display muted (grey) text.
- *
- * @param string $text
- * @return string
- */
-function mute($text)
-{
-    return '<span class="text-muted">' . $text . '</span>';
 }
 
 /**
@@ -188,7 +178,7 @@ function toolbar_item_link($href, $icon, $label, $active = false)
     return '<li class="nav-item">'
         . '<a class="nav-link ' . ($active ? 'active" aria-current="page"' : '"') . ' href="' . $href . '">'
         . ($icon != '' ? '<span class="bi bi-' . $icon . '"></span> ' : '')
-        . $label
+        . htmlspecialchars($label)
         . '</a>'
         . '</li>';
 }
@@ -196,11 +186,11 @@ function toolbar_item_link($href, $icon, $label, $active = false)
 function toolbar_dropdown_item(string $href, string $label, bool $active, string $icon = null): string
 {
     return strtr(
-        '<li><a class="dropdown-item{active}"{aria} href="{href}">{icon} {label}</a></li>',
+        '<li><a class="dropdown-item{active}" {aria} href="{href}">{icon} {label}</a></li>',
         [
             '{href}'   => $href,
             '{icon}'   => $icon === null ? '' : '<i class="bi bi-' . $icon . '"></i>',
-            '{label}'  => $label,
+            '{label}'  => htmlspecialchars($label),
             '{active}' => $active ? ' active' : '',
             '{aria}' => $active ? ' aria-current="page"' : '',
         ]
@@ -235,7 +225,7 @@ EOT;
         $template,
         [
             '{class}'   => $active ? ' active' : '',
-            '{label}'   => $label,
+            '{label}'   => htmlspecialchars($label),
             '{submenu}' => join("\n", $submenu),
         ]
     );
@@ -338,7 +328,7 @@ function render_table($columns, $rows, $data = true)
     $html .= '</tr></thead>';
     $html .= '<tbody>';
     foreach ($rows as $row) {
-        $html .= '<tr>';
+        $html .= '<tr' . (isset($row['row-class']) ? ' class="' . $row['row-class'] . '"' : '') . '>';
         foreach ($columns as $key => $column) {
             $value = '&nbsp;';
             if (isset($row[$key])) {
@@ -362,7 +352,7 @@ function render_table($columns, $rows, $data = true)
  * @param string $id
  * @return string
  */
-function button($href, $label, $class = '', $id = '')
+function button($href, $label, $class = '', $id = '', $title = '')
 {
     if (!Str::contains(str_replace(['btn-sm', 'btn-xl'], '', $class), 'btn-')) {
         $class = 'btn-secondary' . ($class ? ' ' . $class : '');
@@ -370,20 +360,22 @@ function button($href, $label, $class = '', $id = '')
 
     $idAttribute = $id ? 'id="' . $id . '"' : '';
 
-    return '<a ' . $idAttribute . ' href="' . $href . '" class="btn ' . $class . '">' . $label . '</a>';
+    return '<a ' . $idAttribute . ' href="' . $href
+        . '" class="btn ' . $class . '" title="' . $title . '">' . $label . '</a>';
 }
 
 /**
- * Rendert einen Knopf mit JavaScript onclick Handler
+ * Renders a button to select corresponding checkboxes
  *
- * @param string $javascript
+ * @param string $name
  * @param string $label
- * @param string $class
+ * @param string $value
  * @return string
  */
-function button_js($javascript, $label, $class = '')
+function button_checkbox_selection($name, $label, $value)
 {
-    return '<a onclick="' . $javascript . '" href="#" class="btn btn-secondary ' . $class . '">' . $label . '</a>';
+    return '<button type="button" class="btn btn-secondary d-print-none checkbox-selection" '
+        . 'data-id="selection_' . $name . '" data-value="' . $value . '">' . $label . '</button>';
 }
 
 /**
@@ -395,9 +387,9 @@ function button_js($javascript, $label, $class = '')
  *
  * @return string
  */
-function button_icon($href, $icon, $class = '')
+function button_icon($href, $icon, $class = '', $title = '')
 {
-    return button($href, icon($icon), $class);
+    return button($href, icon($icon), $class, '', $title);
 }
 
 /**
@@ -426,7 +418,20 @@ function buttons($buttons = [])
  * @param array $buttons
  * @return string
  */
-function table_buttons($buttons = [])
+function table_buttons($buttons = [], $additionalClass = '')
 {
-    return '<div class="btn-group" role="group">' . join('', $buttons) . '</div>';
+    return '<div class="btn-group ' . $additionalClass . '" role="group">' . join('', $buttons) . '</div>';
+}
+
+function user_info_icon(User $user): string
+{
+    if (!auth()->can('admin_arrive') || !$user->state->user_info) {
+        return '';
+    }
+    $infoIcon = ' <small><span class="bi bi-info-circle-fill text-info" ';
+    if (auth()->can('user.info.show')) {
+        $infoIcon .= 'data-bs-toggle="tooltip" title="' . htmlspecialchars($user->state->user_info) . '"';
+    }
+    $infoIcon .= '></span></small>';
+    return $infoIcon;
 }

@@ -36,9 +36,11 @@ class Question extends BaseModel
     /** @var bool Enable timestamps */
     public $timestamps = true; // phpcs:ignore
 
-    /** @var array<string> */
-    protected $dates = [ // phpcs:ignore
-        'answered_at',
+    /** @var array<string, null> default attributes */
+    protected $attributes = [ // phpcs:ignore
+        'answer'      => null,
+        'answerer_id' => null,
+        'answered_at' => null,
     ];
 
     /** @var array<string> */
@@ -54,6 +56,7 @@ class Question extends BaseModel
     protected $casts = [ // phpcs:ignore
         'user_id'     => 'integer',
         'answerer_id' => 'integer',
+        'answered_at' => 'datetime',
     ];
 
     public function answerer(): BelongsTo
